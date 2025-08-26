@@ -14,17 +14,9 @@ const initDb = require('./database/init');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Security middleware
+// Security middleware - disabled CSP for deployment compatibility
 app.use(helmet({
-    contentSecurityPolicy: {
-        directives: {
-            defaultSrc: ["'self'"],
-            styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
-            fontSrc: ["'self'", "https://fonts.gstatic.com"],
-            scriptSrc: ["'self'"],
-            imgSrc: ["'self'", "data:", "https:"],
-        },
-    },
+    contentSecurityPolicy: false
 }));
 
 // CORS configuration
@@ -100,45 +92,26 @@ app.use((err, req, res, next) => {
     });
 });
 
-// 404 handler
-app.use((req, res) => {
-    res.status(404).json({
-        success: false,
-        error: 'Not found',
-        message: 'The requested resource was not found'
-    });
-});
-
-// Initialize database and start server
-const startServer = async () => {
+// Start server function
+async function startServer() {
     try {
-        // Start server first
-        app.listen(PORT, () => {
-            console.log(`🚀 Panda Diary API server running on port ${PORT}`);
-            console.log(`📖 Frontend available at: http://localhost:${PORT}`);
-            console.log(`🔗 API documentation: http://localhost:${PORT}/api`);
-            console.log(`💚 Health check: http://localhost:${PORT}/api/health`);
-        });
-        
         // Initialize database (works on Render)
         await initDb.initDatabase();
         console.log('✅ Database initialized successfully');
+        
+        // Start the server
+        app.listen(PORT, () => {
+            console.log(`🚀 Panda Diary server running on port ${PORT}`);
+            console.log(`📱 Frontend available at: http://localhost:${PORT}`);
+            console.log(`🔧 API available at: http://localhost:${PORT}/api`);
+            console.log(`💾 Database: SQLite (persistent on Render)`);
+            console.log(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`);
+        });
     } catch (error) {
         console.error('❌ Failed to start server:', error);
         process.exit(1);
     }
-};
-
-// Handle graceful shutdown
-process.on('SIGINT', () => {
-    console.log('\n🛑 Shutting down server gracefully...');
-    process.exit(0);
-});
-
-process.on('SIGTERM', () => {
-    console.log('\n🛑 Shutting down server gracefully...');
-    process.exit(0);
-});
+}
 
 // Start the server
 startServer();
