@@ -9,10 +9,10 @@ const path = require('path');
 const entriesRoutes = require('./routes/entries');
 
 // Import database initialization
-const { initDatabase } = require('./database/init');
+const initDatabase = require('./database/init');
 
+// Create Express app
 const app = express();
-const PORT = process.env.PORT || 3000;
 
 // Security middleware
 app.use(helmet({
@@ -21,31 +21,39 @@ app.use(helmet({
             defaultSrc: ["'self'"],
             styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
             fontSrc: ["'self'", "https://fonts.gstatic.com"],
-            scriptSrc: ["'self'"],
             imgSrc: ["'self'", "data:", "https:"],
-        },
-    },
+            scriptSrc: ["'self'", "'unsafe-inline'"],
+            connectSrc: ["'self'"],
+            frameSrc: ["'none'"],
+            objectSrc: ["'none'"],
+            upgradeInsecureRequests: []
+        }
+    }
 }));
 
 // CORS configuration
-app.use(cors({
-    origin: process.env.CORS_ORIGIN ? process.env.CORS_ORIGIN.split(',') : ['http://localhost:3000', 'http://127.0.0.1:3000'],
+const corsOptions = {
+    origin: process.env.CORS_ORIGIN || 'http://localhost:3000',
     credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-Device-ID']
-}));
+    optionsSuccessStatus: 200
+};
+app.use(cors(corsOptions));
 
 // Logging middleware
-app.use(morgan('combined'));
+if (process.env.NODE_ENV !== 'production') {
+    app.use(morgan('dev'));
+} else {
+    app.use(morgan('combined'));
+}
 
 // Body parsing middleware
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// Serve static files from the parent directory (frontend files)
+// Serve static files from the root directory
 app.use(express.static(path.join(__dirname, '..')));
 
-// API routes
+// API Routes
 app.use('/api/entries', entriesRoutes);
 
 // Health check endpoint
@@ -61,7 +69,7 @@ app.get('/api/health', (req, res) => {
 });
 
 // API documentation endpoint
-app.get('/api', (req, res) => {
+app.get('/api/docs', (req, res) => {
     res.json({
         name: 'Panda Diary API',
         version: '1.0.0',
@@ -77,22 +85,22 @@ app.get('/api', (req, res) => {
                 update: 'PUT /api/entries/:date',
                 upsert: 'PATCH /api/entries/:date',
                 delete: 'DELETE /api/entries/:date',
-                getRange: 'GET /api/entries/range/:startDate/:endDate'
-            },
+                getByRange: 'GET /api/entries/range/:startDate/:endDate'
+            }
         },
         authentication: 'Device ID based (sent via X-Device-ID header)',
         note: 'Full database functionality with SQLite. Deployed on Render for persistent storage.'
     });
 });
 
-// Serve the main HTML file for all other routes (SPA support)
+// Serve the main HTML file for all other routes (SPA)
 app.get('*', (req, res) => {
     res.sendFile(path.join(__dirname, '..', 'index.html'));
 });
 
 // Error handling middleware
 app.use((err, req, res, next) => {
-    console.error('Unhandled error:', err);
+    console.error('Error:', err);
     res.status(500).json({
         success: false,
         error: 'Internal server error',
@@ -109,15 +117,18 @@ app.use((req, res) => {
     });
 });
 
-// Initialize database and start server
-const startServer = async () => {
+// Start server function
+async function startServer() {
     try {
-        // Start server first
-        app.listen(PORT, () => {
-            console.log(`🚀 Panda Diary API server running on port ${PORT}`);
-            console.log(`📖 Frontend available at: http://localhost:${PORT}`);
-            console.log(`🔗 API documentation: http://localhost:${PORT}/api`);
-            console.log(`💚 Health check: http://localhost:${PORT}/api/health`);
+        const port = process.env.PORT || 3000;
+        
+        app.listen(port, () => {
+            console.log(`🚀 Panda Diary server running on port ${port}`);
+            console.log(`📝 Environment: ${process.env.NODE_ENV || 'development'}`);
+            console.log(`🌐 CORS Origin: ${process.env.CORS_ORIGIN || 'http://localhost:3000'}`);
+            console.log(`💾 Database: SQLite`);
+            console.log(`🔗 Health Check: http://localhost:${port}/api/health`);
+            console.log(`📚 API Docs: http://localhost:${port}/api/docs`);
         });
         
         // Initialize database (works on Render)
@@ -127,18 +138,9 @@ const startServer = async () => {
         console.error('❌ Failed to start server:', error);
         process.exit(1);
     }
-};
-
-// Handle graceful shutdown
-process.on('SIGINT', () => {
-    console.log('\n🛑 Shutting down server gracefully...');
-    process.exit(0);
-});
-
-process.on('SIGTERM', () => {
-    console.log('\n🛑 Shutting down server gracefully...');
-    process.exit(0);
-});
+}
 
 // Start the server
 startServer();
+
+module.exports = app;
