@@ -28,8 +28,8 @@ Fill in these settings:
 - **Branch**: `main`
 
 **Build & Deploy Settings:**
-- **Build Command**: `cd backend && npm install`
-- **Start Command**: `cd backend && npm start`
+- **Build Command**: `npm install`
+- **Start Command**: `npm start`
 - **Root Directory**: Leave empty (default)
 
 **Environment Variables:**
@@ -38,7 +38,7 @@ Add these in the "Environment" section:
 ```env
 NODE_ENV=production
 PORT=10000
-DB_PATH=./database/panda_diary.db
+DB_PATH=./panda_diary.db
 CORS_ORIGIN=https://your-app-name.onrender.com
 JWT_SECRET=7b5752c62e9b820ff13bcc1459bd85a362abf512edd794e62544e0fba421f2849704130572448180587305d2e94ca9c7b60fa42115f6a816bc062ecae3cecb08
 ```
@@ -53,16 +53,16 @@ Click **"Create Web Service"** and Render will automatically:
 
 ## 🎯 **Render Advantages**
 
-| Feature | Render | Vercel | Railway |
-|---------|--------|--------|---------|
-| **Server Type** | Traditional Node.js | Serverless | Traditional Node.js |
-| **SQLite Support** | ✅ | ❌ | ✅ |
-| **File System** | Full read/write | Read-only | Full read/write |
-| **Database** | ✅ SQLite, PostgreSQL | Not supported | ✅ SQLite, PostgreSQL |
-| **Cold Starts** | No | Yes | No |
-| **Free Tier** | ✅ | ✅ | ✅ |
-| **Auto-Deploy** | ✅ | ✅ | ✅ |
-| **Custom Domains** | ✅ | ✅ | ✅ |
+| Feature | Render |
+|---------|--------|
+| **Server Type** | Traditional Node.js |
+| **SQLite Support** | ✅ |
+| **File System** | Full read/write |
+| **Database** | ✅ SQLite, PostgreSQL |
+| **Cold Starts** | No |
+| **Free Tier** | ✅ |
+| **Auto-Deploy** | ✅ |
+| **Custom Domains** | ✅ |
 
 ## 🔧 **Render-Specific Configuration**
 
@@ -74,15 +74,15 @@ services:
   - type: web
     name: panda-diary-app
     env: node
-    buildCommand: cd backend && npm install
-    startCommand: cd backend && npm start
+    buildCommand: npm install
+    startCommand: npm start
     envVars:
       - key: NODE_ENV
         value: production
       - key: PORT
         value: 10000
       - key: DB_PATH
-        value: ./database/panda_diary.db
+        value: ./panda_diary.db
       - key: JWT_SECRET
         value: 7b5752c62e9b820ff13bcc1459bd85a362abf512edd794e62544e0fba421f2849704130572448180587305d2e94ca9c7b60fa42115f6a816bc062ecae3cecb08
 ```
@@ -92,8 +92,8 @@ Your current scripts are perfect:
 ```json
 {
   "scripts": {
-    "start": "node server.js",
-    "dev": "nodemon server.js"
+    "start": "cd backend && npm install && npm start",
+    "dev": "cd backend && npm run dev"
   }
 }
 ```
@@ -123,19 +123,15 @@ Render provides:
 
 - **Paid Plans**: Start at $7/month for more resources
 
-## 🔄 **Migration from Vercel**
+## 🔄 **Fresh Deployment**
 
-1. **Remove Vercel-specific files:**
-   ```bash
-   rm vercel.json
-   rm VERCEL_DEPLOYMENT_CHECKLIST.md
-   ```
+1. **Connect your GitHub repository** to Render
 
-2. **Update environment variables** in Render dashboard
+2. **Configure environment variables** in Render dashboard
 
 3. **Deploy** using Render's GitHub integration
 
-4. **Update your domain** if you had a custom one
+4. **Set up your domain** if needed
 
 ## 🎉 **Benefits You'll Get**
 
@@ -192,11 +188,11 @@ After deployment, verify:
 ### **Common Issues:**
 
 **Build Fails:**
-- Check build command: `cd backend && npm install`
-- Verify `package.json` exists in backend folder
+- Check build command: `npm install`
+- Verify `package.json` exists in root directory
 
 **App Won't Start:**
-- Check start command: `cd backend && npm start`
+- Check start command: `npm start`
 - Verify PORT environment variable
 
 **Database Issues:**
