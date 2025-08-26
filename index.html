@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Panda Diary</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600&family=Indie+Flower&family=Gochi+Hand&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="container">
+        <!-- Left Column -->
+        <div class="left-column">
+            <!-- Date/Time Card -->
+            <div class="card time-card">
+                <h3>📅 Today</h3>
+                <div class="time-display-large">
+                    <div class="current-time" id="liveTime">--:--:--</div>
+                    <div class="current-date" id="liveDate">Loading...</div>
+                    <div class="day-of-week" id="dayOfWeek">Loading...</div>
+                </div>
+            </div>
+
+            <!-- Music Player Card -->
+            <div class="card music-card">
+                <h3>🎵 Music Player</h3>
+                <div class="music-info">
+                    <div class="song-title" id="songTitle">Loading...</div>
+                    <div class="artist" id="artist">Loading...</div>
+                    <div class="external-music">
+                        <input type="text" id="externalMusicInput" placeholder="What are you listening to? (YouTube Music, Spotify, etc.)" class="external-music-input">
+                        <button id="saveExternalMusic" class="external-music-btn">💾</button>
+                    </div>
+                </div>
+
+
+            </div>
+        </div>
+
+        <!-- Right Column -->
+        <div class="right-column">
+            <!-- Diary Card -->
+            <div class="card diary-card">
+                <div class="diary-header">
+                    <h3>📖 My Diary</h3>
+                    <div class="panda-corner">
+                        <img src="assets/images/panda-circular-symbol.svg" alt="Cute Panda" class="panda-image">
+                    </div>
+                </div>
+                
+                <div class="diary-navigation">
+                    <button class="nav-btn" id="prevDayBtn" title="Previous Day">◀️</button>
+                    <span class="current-day" id="currentDay">Today</span>
+                    <button class="nav-btn" id="nextDayBtn" title="Next Day">▶️</button>
+                </div>
+
+                <div class="diary-content">
+                    <div class="diary-textarea" id="diaryTextarea" contenteditable="true" placeholder="Write about your day here..."></div>
+                </div>
+
+                <div class="diary-footer">
+                    <button class="history-btn" id="historyBtn">📚 View History</button>
+                    <button class="save-btn" id="saveBtn">💾 Save Entry</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
