@@ -3,16 +3,8 @@ const router = express.Router();
 const DiaryEntry = require('../models/DiaryEntry');
 const { deviceIdMiddleware, validateDeviceId } = require('../middleware/deviceId');
 
-// Production mode middleware - disable database operations in production
-const productionModeMiddleware = (req, res, next) => {
-    if (process.env.NODE_ENV === 'production') {
-        return res.status(503).json({
-            success: false,
-            error: 'Service unavailable',
-            message: 'Database operations are not available in production. Please use LocalStorage for data persistence.',
-            mode: 'production'
-        });
-    }
+// Database middleware - works on Render
+const databaseMiddleware = (req, res, next) => {
     next();
 };
 
@@ -21,7 +13,7 @@ router.use(deviceIdMiddleware);
 router.use(validateDeviceId);
 
 // GET /api/entries - Get all entries for the device
-router.get('/', productionModeMiddleware, async (req, res) => {
+router.get('/', databaseMiddleware, async (req, res) => {
     try {
         const entries = await DiaryEntry.getAllEntries(req.deviceId);
         res.json({
@@ -40,7 +32,7 @@ router.get('/', productionModeMiddleware, async (req, res) => {
 });
 
 // GET /api/entries/:date - Get entry for specific date
-router.get('/:date', productionModeMiddleware, async (req, res) => {
+router.get('/:date', databaseMiddleware, async (req, res) => {
     try {
         const { date } = req.params;
         
@@ -79,7 +71,7 @@ router.get('/:date', productionModeMiddleware, async (req, res) => {
 });
 
 // POST /api/entries - Create new entry
-router.post('/', productionModeMiddleware, async (req, res) => {
+router.post('/', databaseMiddleware, async (req, res) => {
     try {
         const { date, content } = req.body;
         
@@ -131,7 +123,7 @@ router.post('/', productionModeMiddleware, async (req, res) => {
 });
 
 // PUT /api/entries/:date - Update existing entry
-router.put('/:date', productionModeMiddleware, async (req, res) => {
+router.put('/:date', databaseMiddleware, async (req, res) => {
     try {
         const { date } = req.params;
         const { content } = req.body;
@@ -184,7 +176,7 @@ router.put('/:date', productionModeMiddleware, async (req, res) => {
 });
 
 // PATCH /api/entries/:date - Upsert entry (create or update)
-router.patch('/:date', productionModeMiddleware, async (req, res) => {
+router.patch('/:date', databaseMiddleware, async (req, res) => {
     try {
         const { date } = req.params;
         const { content } = req.body;
@@ -227,7 +219,7 @@ router.patch('/:date', productionModeMiddleware, async (req, res) => {
 });
 
 // DELETE /api/entries/:date - Delete entry
-router.delete('/:date', productionModeMiddleware, async (req, res) => {
+router.delete('/:date', databaseMiddleware, async (req, res) => {
     try {
         const { date } = req.params;
         
@@ -269,7 +261,7 @@ router.delete('/:date', productionModeMiddleware, async (req, res) => {
 });
 
 // GET /api/entries/range/:startDate/:endDate - Get entries in date range
-router.get('/range/:startDate/:endDate', productionModeMiddleware, async (req, res) => {
+router.get('/range/:startDate/:endDate', databaseMiddleware, async (req, res) => {
     try {
         const { startDate, endDate } = req.params;
         
