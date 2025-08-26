@@ -1,15 +1,19 @@
 // Global variables
 let currentDate = new Date();
 let isOnline = navigator.onLine;
+let deviceId = localStorage.getItem('deviceId') || generateUUID();
+
+// API base URL
+const apiBaseUrl = window.location.origin + '/api';
 
 // Default music info
 const defaultMusic = {
-    title: 'Song of the Day',
-    artist: 'Your Favorite Artist'
+    title: "Song of the Day",
+    artist: "Your Music"
 };
 
-// API base URL
-const API_BASE_URL = window.location.origin + '/api';
+// DOM Elements - will be initialized after DOM loads
+let songTitle, artist;
 
 // DOM Elements - will be initialized after DOM loads
 let liveTime, liveDate, dayOfWeek, diaryTextarea, saveBtn, prevDayBtn, nextDayBtn, currentDaySpan, historyBtn, pandaImage, externalMusicInput, saveExternalMusicBtn;
@@ -17,92 +21,76 @@ let liveTime, liveDate, dayOfWeek, diaryTextarea, saveBtn, prevDayBtn, nextDayBt
 // API Functions
 const api = {
     async request(endpoint, options = {}) {
-        const deviceId = localStorage.getItem('deviceId') || generateUUID();
-        localStorage.setItem('deviceId', deviceId);
-        
-        const defaultOptions = {
+        const url = `${apiBaseUrl}${endpoint}`;
+        const config = {
             headers: {
                 'Content-Type': 'application/json',
-                'X-Device-ID': deviceId
-            }
+                ...(deviceId && { 'X-Device-ID': deviceId }),
+                ...options.headers
+            },
+            ...options
         };
-        
-        const finalOptions = { ...defaultOptions, ...options };
-        
+
+        console.log('API request:', url, 'Config:', config);
+
         try {
-            const response = await fetch(`${API_BASE_URL}${endpoint}`, finalOptions);
+            const response = await fetch(url, config);
+            console.log('API response status:', response.status);
+            
+            // Handle device ID from response headers
+            const newDeviceId = response.headers.get('X-Device-ID');
+            if (newDeviceId && !deviceId) {
+                deviceId = newDeviceId;
+                localStorage.setItem('deviceId', deviceId);
+            }
             
             if (!response.ok) {
-                if (response.status === 404) {
-                    return null; // Return null for 404s instead of throwing
-                }
-                throw new Error(`HTTP error! status: ${response.status}`);
+                const errorText = await response.text();
+                console.error('API error response:', errorText);
+                throw new Error(`HTTP ${response.status}: ${response.statusText} - ${errorText}`);
             }
             
-            return await response.json();
+            const data = await response.json();
+            console.log('API response data:', data);
+            return data;
         } catch (error) {
             console.error('API request failed:', error);
             throw error;
         }
     },
-    
+
+    // Diary entries
     async getEntry(date) {
         try {
-            const result = await this.request(`/entries/${date}`);
-            return result;
+            return await this.request(`/entries/${date}`);
         } catch (error) {
-            console.error('Failed to get entry:', error);
-            return null;
-        }
-    },
-    
-    async saveEntry(date, content, music) {
-        try {
-            const result = await this.request(`/entries/${date}`, {
-                method: 'PATCH',
-                body: JSON.stringify({ content, music })
-            });
-            return result;
-        } catch (error) {
-            console.error('Failed to save entry:', error);
+            // If it's a 404 (entry not found), that's normal - return empty data
+            if (error.message.includes('404')) {
+                return { success: true, data: { content: '' } };
+            }
             throw error;
         }
     },
-    
-    async getEntries() {
-        try {
-            const result = await this.request('/entries');
-            return result;
-        } catch (error) {
-            console.error('Failed to get entries:', error);
-            return [];
-        }
+
+    async saveEntry(date, content) {
+        return this.request(`/entries/${date}`, {
+            method: 'PATCH',
+            body: JSON.stringify({ content })
+        });
+    },
+
+    async deleteEntry(date) {
+        return this.request(`/entries/${date}`, {
+            method: 'DELETE'
+        });
+    },
+
+    async getAllEntries() {
+        return this.request('/entries');
     }
 };
 
-// Utility Functions
-function generateUUID() {
-    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
-        const r = Math.random() * 16 | 0;
-        const v = c == 'x' ? r : (r & 0x3 | 0x8);
-        return v.toString(16);
-    });
-}
-
-function formatDateKey(date) {
-    return date.toISOString().split('T')[0];
-}
-
-function formatDisplayDate(date) {
-    return date.toLocaleDateString('en-US', {
-        weekday: 'long',
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric'
-    });
-}
-
-// Initialize app when DOM is loaded
+// Initialize the app
 document.addEventListener('DOMContentLoaded', function() {
     initializeApp();
 });
@@ -121,6 +109,8 @@ function initializeApp() {
     pandaImage = document.querySelector('.panda-image');
     externalMusicInput = document.getElementById('externalMusicInput');
     saveExternalMusicBtn = document.getElementById('saveExternalMusic');
+    songTitle = document.getElementById('songTitle');
+    artist = document.getElementById('artist');
     
     // Debug logging for deployment
     console.log('DOM Elements initialized:', {
@@ -283,7 +273,7 @@ async function saveDiaryEntry() {
         const dateKey = formatDateKey(currentDate);
         
         // Save to server
-        await api.saveEntry(dateKey, content, '');
+        await api.saveEntry(dateKey, content);
         
         // Also save to localStorage as backup
         localStorage.setItem(`diary_${dateKey}`, content);
@@ -312,7 +302,7 @@ async function autoSave() {
     if (content) {
         try {
             const dateKey = formatDateKey(currentDate);
-            await api.saveEntry(dateKey, content, '');
+            await api.saveEntry(dateKey, content);
             localStorage.setItem(`diary_${dateKey}`, content);
             console.log('Auto-saved entry');
         } catch (error) {
@@ -355,15 +345,52 @@ function updateCurrentDay() {
     }
 }
 
-// History Modal Functions
+// History Functions
 async function showHistory() {
+    console.log('showHistory called');
+    console.log('isOnline:', isOnline);
+    
     try {
-        const entries = await api.getEntries();
-        displayHistoryModal(entries.data || []);
+        if (isOnline) {
+            console.log('Fetching entries from API...');
+            const response = await api.getAllEntries();
+            console.log('API response:', response);
+            const entries = response.data || [];
+            console.log('Entries found:', entries.length);
+            
+            // Add external music data to API entries
+            const entriesWithMusic = entries.map(entry => {
+                const externalMusic = localStorage.getItem(`external_music_${entry.date}`);
+                return { ...entry, externalMusic };
+            });
+            displayHistoryModal(entriesWithMusic);
+        } else {
+            console.log('Offline - showing local entries');
+            // Show local entries
+            const localEntries = getLocalEntries();
+            displayHistoryModal(localEntries);
+        }
     } catch (error) {
-        console.error('Failed to load history:', error);
-        showNotification('⚠️ Failed to load history', 'warning');
+        console.error('Error loading history:', error);
+        showNotification('⚠️ Error loading history. Check your connection.');
+        // Fallback to local entries
+        const localEntries = getLocalEntries();
+        displayHistoryModal(localEntries);
     }
+}
+
+function getLocalEntries() {
+    const entries = [];
+    for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && key.startsWith('diary_')) {
+            const date = key.replace('diary_', '');
+            const content = localStorage.getItem(key);
+            const externalMusic = localStorage.getItem(`external_music_${date}`);
+            entries.push({ date, content, externalMusic });
+        }
+    }
+    return entries.sort((a, b) => new Date(b.date) - new Date(a.date));
 }
 
 function displayHistoryModal(entries) {
@@ -374,15 +401,15 @@ function displayHistoryModal(entries) {
         <div class="history-modal-content">
             <div class="history-modal-header">
                 <h3>📚 Diary History</h3>
-                <button class="close-btn" onclick="closeHistoryModal()">&times;</button>
+                <button class="close-btn">×</button>
             </div>
             <div class="history-modal-body">
-                ${entries.length === 0 ? '<div class="no-entries">No entries found</div>' : ''}
-                ${entries.map(entry => `
-                    <div class="history-entry" onclick="loadHistoryEntry('${entry.date}')">
-                        <div class="history-entry-date">${formatDisplayDate(new Date(entry.date))}</div>
-                        ${entry.music ? `<div class="history-entry-music">🎵 ${entry.music}</div>` : ''}
-                        <div class="history-entry-content">${entry.content ? entry.content.substring(0, 100) + (entry.content.length > 100 ? '...' : '') : 'No content'}</div>
+                ${entries.length === 0 ? '<p class="no-entries">No entries found. Start writing to see your history!</p>' : 
+                entries.map(entry => `
+                    <div class="history-entry">
+                        <div class="history-entry-date">${formatDisplayDate(entry.date)}</div>
+                        ${entry.externalMusic ? `<div class="history-entry-music">🎵 ${entry.externalMusic}</div>` : ''}
+                        <div class="history-entry-content">${entry.content.substring(0, 100)}${entry.content.length > 100 ? '...' : ''}</div>
                     </div>
                 `).join('')}
             </div>
@@ -391,26 +418,33 @@ function displayHistoryModal(entries) {
     
     document.body.appendChild(modal);
     
-    // Add escape key handler
-    modal._escapeHandler = (e) => {
-        if (e.key === 'Escape') {
-            closeHistoryModal();
-        }
-    };
-    document.addEventListener('keydown', modal._escapeHandler);
+    // Add event listeners for closing the modal
+    const closeBtn = modal.querySelector('.close-btn');
+    closeBtn.addEventListener('click', closeHistoryModal);
     
-    // Add click outside to close
+    // Also close when clicking outside the modal
     modal.addEventListener('click', (e) => {
         if (e.target === modal) {
             closeHistoryModal();
         }
     });
+    
+    // Close on Escape key
+    const handleEscape = (e) => {
+        if (e.key === 'Escape') {
+            closeHistoryModal();
+        }
+    };
+    document.addEventListener('keydown', handleEscape);
+    
+    // Store the escape handler for cleanup
+    modal._escapeHandler = handleEscape;
 }
 
 function closeHistoryModal() {
     const modal = document.querySelector('.history-modal');
     if (modal) {
-        // Remove event listeners
+        // Clean up event listeners
         if (modal._escapeHandler) {
             document.removeEventListener('keydown', modal._escapeHandler);
         }
@@ -527,6 +561,10 @@ function showNotification(message, type = 'info') {
             }
         }, 300);
     }, 4000);
+}
+
+function formatDateKey(date) {
+    return date.toISOString().split('T')[0];
 }
 
 // Panda interaction
