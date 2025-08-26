@@ -393,7 +393,7 @@ function displayHistoryModal(entries) {
         <div class="history-modal-content">
             <div class="history-modal-header">
                 <h3>📚 Diary History</h3>
-                <button class="close-btn" onclick="closeHistoryModal()">×</button>
+                <button class="close-btn">×</button>
             </div>
             <div class="history-modal-body">
                 ${entries.length === 0 ? '<p class="no-entries">No entries found. Start writing to see your history!</p>' : 
@@ -409,14 +409,45 @@ function displayHistoryModal(entries) {
     `;
     
     document.body.appendChild(modal);
+    
+    // Add event listeners for closing the modal
+    const closeBtn = modal.querySelector('.close-btn');
+    closeBtn.addEventListener('click', closeHistoryModal);
+    
+    // Also close when clicking outside the modal
+    modal.addEventListener('click', (e) => {
+        if (e.target === modal) {
+            closeHistoryModal();
+        }
+    });
+    
+    // Close on Escape key
+    const handleEscape = (e) => {
+        if (e.key === 'Escape') {
+            closeHistoryModal();
+        }
+    };
+    document.addEventListener('keydown', handleEscape);
+    
+    // Store the escape handler for cleanup
+    modal._escapeHandler = handleEscape;
 }
 
 function closeHistoryModal() {
     const modal = document.querySelector('.history-modal');
     if (modal) {
+        // Clean up event listeners
+        if (modal._escapeHandler) {
+            document.removeEventListener('keydown', modal._escapeHandler);
+        }
+        
+        // Remove the modal
         modal.remove();
     }
 }
+
+// Make closeHistoryModal globally accessible
+window.closeHistoryModal = closeHistoryModal;
 
 function formatDisplayDate(dateString) {
     const date = new Date(dateString);
