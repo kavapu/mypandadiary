@@ -1,24 +1,14 @@
 // Global variables
 let currentDate = new Date();
-
-let deviceId = localStorage.getItem('deviceId') || null;
-
-// Generate a valid UUID if none exists
-function generateUUID() {
-    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
-        const r = Math.random() * 16 | 0;
-        const v = c == 'x' ? r : (r & 0x3 | 0x8);
-        return v.toString(16);
-    });
-}
-
-// Ensure we have a valid device ID
-if (!deviceId) {
-    deviceId = generateUUID();
-    localStorage.setItem('deviceId', deviceId);
-}
+let deviceId = localStorage.getItem('deviceId') || generateUUID();
 let isOnline = navigator.onLine;
-let apiBaseUrl = 'http://localhost:3000/api';
+const apiBaseUrl = window.location.origin + '/api';
+
+// Ensure deviceId is a valid UUID
+if (!deviceId.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i)) {
+    deviceId = generateUUID();
+}
+localStorage.setItem('deviceId', deviceId);
 
 // Default music info
 const defaultMusic = {
@@ -26,16 +16,8 @@ const defaultMusic = {
     artist: "Your Music"
 };
 
+
 // DOM Elements
-const songTitle = document.getElementById('songTitle');
-const artist = document.getElementById('artist');
-
-// Time elements
-const liveTime = document.getElementById('liveTime');
-const liveDate = document.getElementById('liveDate');
-const dayOfWeek = document.getElementById('dayOfWeek');
-
-// Diary elements
 const diaryTextarea = document.getElementById('diaryTextarea');
 const saveBtn = document.getElementById('saveBtn');
 const prevDayBtn = document.getElementById('prevDayBtn');
@@ -53,51 +35,36 @@ const api = {
         const config = {
             headers: {
                 'Content-Type': 'application/json',
-                ...(deviceId && { 'X-Device-ID': deviceId }),
+                'X-Device-ID': deviceId,
                 ...options.headers
             },
             ...options
         };
 
-        console.log('API request:', url, 'Config:', config);
-
         try {
             const response = await fetch(url, config);
-            console.log('API response status:', response.status);
-            
-            // Handle device ID from response headers
-            const newDeviceId = response.headers.get('X-Device-ID');
-            if (newDeviceId && !deviceId) {
-                deviceId = newDeviceId;
-                localStorage.setItem('deviceId', deviceId);
-            }
             
             if (!response.ok) {
-                const errorText = await response.text();
-                console.error('API error response:', errorText);
-                throw new Error(`HTTP ${response.status}: ${response.statusText} - ${errorText}`);
+                // Handle 404 gracefully for diary entries
+                if (response.status === 404 && endpoint.includes('/entries/')) {
+                    return { success: false, data: null, status: 404 };
+                }
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
             }
             
-            const data = await response.json();
-            console.log('API response data:', data);
-            return data;
+            return await response.json();
         } catch (error) {
             console.error('API request failed:', error);
             throw error;
         }
     },
 
-    // Diary entries
+    async getAllEntries() {
+        return this.request('/entries');
+    },
+
     async getEntry(date) {
-        try {
-            return await this.request(`/entries/${date}`);
-        } catch (error) {
-            // If it's a 404 (entry not found), that's normal - return empty data
-            if (error.message.includes('404')) {
-                return { success: true, data: { content: '' } };
-            }
-            throw error;
-        }
+        return this.request(`/entries/${date}`);
     },
 
     async saveEntry(date, content) {
@@ -107,151 +74,96 @@ const api = {
         });
     },
 
-    async deleteEntry(date) {
+    async upsertEntry(date, content) {
         return this.request(`/entries/${date}`, {
-            method: 'DELETE'
+            method: 'PATCH',
+            body: JSON.stringify({ content })
         });
-    },
-
-    async getAllEntries() {
-        return this.request('/entries');
-    },
-
-    // History
-    async getAllEntries() {
-        return this.request('/entries');
     }
 };
 
-// Initialize the app
-document.addEventListener('DOMContentLoaded', function() {
-    initializeApp();
-});
-
-function initializeApp() {
-    setupLiveClock();
-    setupDiary();
-    setupOnlineStatus();
-    updateCurrentDay();
-    updateExternalMusicDisplay();
-}
-
-// Online/Offline Status
+// Setup online/offline detection
 function setupOnlineStatus() {
     window.addEventListener('online', () => {
         isOnline = true;
-        showNotification('🟢 Back online! Syncing with server...');
+        console.log('🌐 Back online');
         syncWithServer();
     });
 
     window.addEventListener('offline', () => {
         isOnline = false;
-        showNotification('🔴 You\'re offline. Changes will be saved locally.');
+        console.log('📴 Gone offline');
     });
 }
 
+// Sync local data with server when coming back online
 async function syncWithServer() {
     try {
-        showNotification('✅ Sync completed!');
+        // Get all local entries
+        const localEntries = getLocalEntries();
+        
+        // Try to sync each entry
+        for (const entry of localEntries) {
+            try {
+                await api.upsertEntry(entry.date, entry.content);
+                console.log(`✅ Synced entry for ${entry.date}`);
+            } catch (error) {
+                console.error(`❌ Failed to sync entry for ${entry.date}:`, error);
+            }
+        }
+        
+        showNotification('🔄 Synced with cloud!', 'success');
     } catch (error) {
         console.error('Sync failed:', error);
-        showNotification('⚠️ Sync failed. Using local data.');
+        showNotification('❌ Sync failed. Entries saved locally.', 'error');
     }
 }
 
-// Live Clock Functions
-function setupLiveClock() {
-    updateClock();
-    setInterval(updateClock, 1000);
-}
-
-function updateClock() {
-    const now = new Date();
-    
-    // Update time
-    const timeString = now.toLocaleTimeString('en-US', {
-        hour12: false,
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit'
-    });
-    liveTime.textContent = timeString;
-    
-    // Update date
-    const dateString = now.toLocaleDateString('en-US', {
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric'
-    });
-    liveDate.textContent = dateString;
-    
-    // Update day of week
-    const dayString = now.toLocaleDateString('en-US', { weekday: 'long' });
-    dayOfWeek.textContent = dayString;
-}
-
-// Diary Functions
-function setupDiary() {
-    // Load today's entry
-    loadDiaryEntry();
-    
-    // Event listeners
-    saveBtn.addEventListener('click', saveDiaryEntry);
-    historyBtn.addEventListener('click', showHistory);
-    prevDayBtn.addEventListener('click', () => navigateDay(-1));
-    nextDayBtn.addEventListener('click', () => navigateDay(1));
-    
-    // External music input
-    saveExternalMusicBtn.addEventListener('click', saveExternalMusic);
-    externalMusicInput.addEventListener('keypress', (e) => {
-        if (e.key === 'Enter') {
-            saveExternalMusic();
-        }
-    });
-    
-    // Auto-save on input (with debounce)
-    let saveTimeout;
-    diaryTextarea.addEventListener('input', () => {
-        clearTimeout(saveTimeout);
-        saveTimeout = setTimeout(autoSave, 2000);
-    });
-}
-
+// Load diary entry for current date
 async function loadDiaryEntry() {
     const dateKey = formatDateKey(currentDate);
-    console.log('Loading diary entry for:', dateKey, 'Device ID:', deviceId, 'Online:', isOnline);
     
     try {
         if (isOnline) {
             // Try to load from API
-            console.log('Attempting to load from API...');
             const response = await api.getEntry(dateKey);
-            console.log('API response:', response);
-            diaryTextarea.textContent = response.data?.content || '';
+            
+            if (response.success && response.data) {
+                diaryTextarea.textContent = response.data.content;
+                return;
+            }
+        }
+        
+        // Fallback to LocalStorage
+        const savedContent = localStorage.getItem(`diary_${dateKey}`);
+        if (savedContent) {
+            diaryTextarea.textContent = savedContent;
         } else {
-            // Fallback to LocalStorage
-            console.log('Loading from LocalStorage...');
-            const entry = localStorage.getItem(`diary_${dateKey}`);
-            diaryTextarea.textContent = entry || '';
+            diaryTextarea.textContent = '';
         }
     } catch (error) {
         console.error('Error loading entry:', error);
-        // Only show notification for real errors, not 404s
-        if (!error.message.includes('404')) {
-            showNotification('⚠️ Error loading entry: ' + error.message);
+        
+        // Only show notification for actual errors, not 404s
+        if (error.message && !error.message.includes('404')) {
+            showNotification('Error loading entry. Using local data.', 'error');
         }
+        
         // Fallback to LocalStorage
-        const entry = localStorage.getItem(`diary_${dateKey}`);
-        diaryTextarea.textContent = entry || '';
+        const savedContent = localStorage.getItem(`diary_${dateKey}`);
+        if (savedContent) {
+            diaryTextarea.textContent = savedContent;
+        }
     }
 }
 
+// Save diary entry
 async function saveDiaryEntry() {
     const dateKey = formatDateKey(currentDate);
     const content = diaryTextarea.textContent.trim();
     
     if (!content) {
-        showNotification('Please write something before saving! 📝');
+        showNotification('Please write something before saving! 📝', 'warning');
         return;
     }
     
@@ -275,10 +187,10 @@ async function saveDiaryEntry() {
         
         // Show success message
         const message = isOnline ? 'Entry saved to cloud! 🐼' : 'Entry saved locally! 🐼';
-        showNotification(message);
+        showNotification(message, 'success');
     } catch (error) {
         console.error('Error saving entry:', error);
-        showNotification('Error saving entry. Check your connection.');
+        showNotification('Error saving entry. Check your connection.', 'error');
     }
 }
 
@@ -345,10 +257,73 @@ function formatDateKey(date) {
     return date.toISOString().split('T')[0];
 }
 
-// History Functions
+// Live clock functionality
+function setupLiveClock() {
+    function updateClock() {
+        const now = new Date();
+        
+        // Update time
+        const timeString = now.toLocaleTimeString('en-US', {
+            hour12: false,
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit'
+        });
+        document.getElementById('liveTime').textContent = timeString;
+        
+        // Update date
+        const dateString = now.toLocaleDateString('en-US', {
+            weekday: 'long',
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric'
+        });
+        document.getElementById('liveDate').textContent = dateString;
+        
+        // Update day of week
+        const dayString = now.toLocaleDateString('en-US', { weekday: 'long' });
+        document.getElementById('dayOfWeek').textContent = dayString;
+    }
+    
+    // Update immediately and then every second
+    updateClock();
+    setInterval(updateClock, 1000);
+}
+
+// Diary setup
+function setupDiary() {
+    // Load initial entry
+    loadDiaryEntry();
+    
+    // Event listeners
+    saveBtn.addEventListener('click', saveDiaryEntry);
+    historyBtn.addEventListener('click', showHistory);
+    prevDayBtn.addEventListener('click', () => navigateDay(-1));
+    nextDayBtn.addEventListener('click', () => navigateDay(1));
+
+    // External music input
+    saveExternalMusicBtn.addEventListener('click', saveExternalMusic);
+    externalMusicInput.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') {
+            saveExternalMusic();
+        }
+    });
+    
+    // Auto-save on input (with debounce)
+    let autoSaveTimeout;
+    diaryTextarea.addEventListener('input', () => {
+        clearTimeout(autoSaveTimeout);
+        autoSaveTimeout = setTimeout(autoSave, 2000);
+    });
+}
+
+// History modal functionality
 async function showHistory() {
     try {
+        let entries = [];
+        
         if (isOnline) {
+            // Try to get entries from API
             const response = await api.getAllEntries();
             const entries = response.data || [];
             // Add external music data to API entries
@@ -359,15 +334,14 @@ async function showHistory() {
             displayHistoryModal(entriesWithMusic);
         } else {
             // Show local entries
-            const localEntries = getLocalEntries();
-            displayHistoryModal(localEntries);
+            entries = getLocalEntries();
+            displayHistoryModal(entries);
         }
     } catch (error) {
         console.error('Error loading history:', error);
-        showNotification('⚠️ Error loading history. Check your connection.');
         // Fallback to local entries
-        const localEntries = getLocalEntries();
-        displayHistoryModal(localEntries);
+        const entries = getLocalEntries();
+        displayHistoryModal(entries);
     }
 }
 
@@ -386,7 +360,6 @@ function getLocalEntries() {
 }
 
 function displayHistoryModal(entries) {
-    // Create modal
     const modal = document.createElement('div');
     modal.className = 'history-modal';
     modal.innerHTML = `
@@ -467,7 +440,7 @@ function saveExternalMusic() {
         localStorage.setItem(`external_music_${dateKey}`, musicText);
         
         // Show success message
-        showNotification('🎵 External music saved!');
+        showNotification('🎵 External music saved!', 'success');
         
         // Clear input
         externalMusicInput.value = '';
@@ -493,15 +466,23 @@ function updateExternalMusicDisplay() {
 }
 
 // Utility Functions
-function showNotification(message) {
+function showNotification(message, type = 'info') {
     // Create notification element
     const notification = document.createElement('div');
     notification.textContent = message;
+    
+    const colors = {
+        info: 'rgba(52, 152, 219, 0.9)',
+        success: 'rgba(46, 204, 113, 0.9)',
+        warning: 'rgba(241, 196, 15, 0.9)',
+        error: 'rgba(231, 76, 60, 0.9)'
+    };
+    
     notification.style.cssText = `
         position: fixed;
         top: 20px;
         right: 20px;
-        background: rgba(52, 152, 219, 0.9);
+        background: ${colors[type] || colors.info};
         color: white;
         padding: 15px 20px;
         border-radius: 10px;
@@ -511,6 +492,8 @@ function showNotification(message) {
         transition: transform 0.3s ease;
         backdrop-filter: blur(10px);
         box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+        max-width: 300px;
+        word-wrap: break-word;
     `;
     
     document.body.appendChild(notification);
@@ -524,33 +507,34 @@ function showNotification(message) {
     setTimeout(() => {
         notification.style.transform = 'translateX(100%)';
         setTimeout(() => {
-            document.body.removeChild(notification);
+            if (notification.parentNode) {
+                notification.parentNode.removeChild(notification);
+            }
         }, 300);
     }, 3000);
 }
 
-// Keyboard shortcuts
-document.addEventListener('keydown', function(e) {
-    // Ctrl/Cmd + S to save
-    if ((e.ctrlKey || e.metaKey) && e.key === 's') {
-        e.preventDefault();
-        saveDiaryEntry();
-    }
-    
-    // Left/Right arrows to navigate days (when not typing)
-    if (e.target !== diaryTextarea) {
-        if (e.key === 'ArrowLeft') {
-            navigateDay(-1);
-        } else if (e.key === 'ArrowRight') {
-            navigateDay(1);
-        }
-    }
-});
-
-// Initialize with a welcome message for new users
-if (!localStorage.getItem('diary_welcome_shown')) {
-    setTimeout(() => {
-        showNotification('Welcome to your Panda Diary! 🐼 Start writing about your day!');
-        localStorage.setItem('diary_welcome_shown', 'true');
-    }, 1000);
+function generateUUID() {
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+        const r = Math.random() * 16 | 0;
+        const v = c == 'x' ? r : (r & 0x3 | 0x8);
+        return v.toString(16);
+    });
 }
+
+// Initialize app
+function initializeApp() {
+    setupLiveClock();
+    setupDiary();
+    setupOnlineStatus();
+    updateCurrentDay();
+    updateExternalMusicDisplay();
+    
+    // Show data persistence info
+    setTimeout(() => {
+        showNotification('📝 Your diary entries are saved locally in your browser. For cloud sync, consider upgrading to a database solution.', 'info');
+    }, 2000);
+}
+
+// Start the app when DOM is loaded
+document.addEventListener('DOMContentLoaded', initializeApp);
