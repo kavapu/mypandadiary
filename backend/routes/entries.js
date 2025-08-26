@@ -3,12 +3,25 @@ const router = express.Router();
 const DiaryEntry = require('../models/DiaryEntry');
 const { deviceIdMiddleware, validateDeviceId } = require('../middleware/deviceId');
 
+// Production mode middleware - disable database operations in production
+const productionModeMiddleware = (req, res, next) => {
+    if (process.env.NODE_ENV === 'production') {
+        return res.status(503).json({
+            success: false,
+            error: 'Service unavailable',
+            message: 'Database operations are not available in production. Please use LocalStorage for data persistence.',
+            mode: 'production'
+        });
+    }
+    next();
+};
+
 // Apply device ID middleware to all routes
 router.use(deviceIdMiddleware);
 router.use(validateDeviceId);
 
 // GET /api/entries - Get all entries for the device
-router.get('/', async (req, res) => {
+router.get('/', productionModeMiddleware, async (req, res) => {
     try {
         const entries = await DiaryEntry.getAllEntries(req.deviceId);
         res.json({
@@ -27,7 +40,7 @@ router.get('/', async (req, res) => {
 });
 
 // GET /api/entries/:date - Get entry for specific date
-router.get('/:date', async (req, res) => {
+router.get('/:date', productionModeMiddleware, async (req, res) => {
     try {
         const { date } = req.params;
         
@@ -66,7 +79,7 @@ router.get('/:date', async (req, res) => {
 });
 
 // POST /api/entries - Create new entry
-router.post('/', async (req, res) => {
+router.post('/', productionModeMiddleware, async (req, res) => {
     try {
         const { date, content } = req.body;
         
@@ -99,13 +112,13 @@ router.post('/', async (req, res) => {
             });
         }
         
-        // Create entry
+        // Create new entry
         const newEntry = await DiaryEntry.createEntry(date, content, req.deviceId);
         
         res.status(201).json({
             success: true,
-            data: newEntry,
-            message: 'Entry created successfully'
+            message: 'Entry created successfully',
+            data: newEntry
         });
     } catch (error) {
         console.error('Error creating entry:', error);
@@ -118,7 +131,7 @@ router.post('/', async (req, res) => {
 });
 
 // PUT /api/entries/:date - Update existing entry
-router.put('/:date', async (req, res) => {
+router.put('/:date', productionModeMiddleware, async (req, res) => {
     try {
         const { date } = req.params;
         const { content } = req.body;
@@ -148,7 +161,7 @@ router.put('/:date', async (req, res) => {
             return res.status(404).json({
                 success: false,
                 error: 'Entry not found',
-                message: `No entry found for date: ${date}`
+                message: `No entry found for date: ${date}. Use POST to create.`
             });
         }
         
@@ -157,8 +170,8 @@ router.put('/:date', async (req, res) => {
         
         res.json({
             success: true,
-            data: updatedEntry,
-            message: 'Entry updated successfully'
+            message: 'Entry updated successfully',
+            data: updatedEntry
         });
     } catch (error) {
         console.error('Error updating entry:', error);
@@ -171,7 +184,7 @@ router.put('/:date', async (req, res) => {
 });
 
 // PATCH /api/entries/:date - Upsert entry (create or update)
-router.patch('/:date', async (req, res) => {
+router.patch('/:date', productionModeMiddleware, async (req, res) => {
     try {
         const { date } = req.params;
         const { content } = req.body;
@@ -195,13 +208,13 @@ router.patch('/:date', async (req, res) => {
             });
         }
         
-        // Upsert entry
-        const result = await DiaryEntry.upsertEntry(date, content, req.deviceId);
+        // Upsert entry (create or update)
+        const entry = await DiaryEntry.upsertEntry(date, content, req.deviceId);
         
         res.json({
             success: true,
-            data: result,
-            message: 'Entry saved successfully'
+            message: 'Entry saved successfully',
+            data: entry
         });
     } catch (error) {
         console.error('Error upserting entry:', error);
@@ -214,7 +227,7 @@ router.patch('/:date', async (req, res) => {
 });
 
 // DELETE /api/entries/:date - Delete entry
-router.delete('/:date', async (req, res) => {
+router.delete('/:date', productionModeMiddleware, async (req, res) => {
     try {
         const { date } = req.params;
         
@@ -239,11 +252,10 @@ router.delete('/:date', async (req, res) => {
         }
         
         // Delete entry
-        const result = await DiaryEntry.deleteEntry(date, req.deviceId);
+        await DiaryEntry.deleteEntry(date, req.deviceId);
         
         res.json({
             success: true,
-            data: result,
             message: 'Entry deleted successfully'
         });
     } catch (error) {
@@ -257,11 +269,11 @@ router.delete('/:date', async (req, res) => {
 });
 
 // GET /api/entries/range/:startDate/:endDate - Get entries in date range
-router.get('/range/:startDate/:endDate', async (req, res) => {
+router.get('/range/:startDate/:endDate', productionModeMiddleware, async (req, res) => {
     try {
         const { startDate, endDate } = req.params;
         
-        // Validate date formats
+        // Validate date format (YYYY-MM-DD)
         const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
         if (!dateRegex.test(startDate) || !dateRegex.test(endDate)) {
             return res.status(400).json({
@@ -271,18 +283,28 @@ router.get('/range/:startDate/:endDate', async (req, res) => {
             });
         }
         
-        const entries = await DiaryEntry.getEntriesInRange(startDate, endDate, req.deviceId);
+        // Validate date range
+        if (new Date(startDate) > new Date(endDate)) {
+            return res.status(400).json({
+                success: false,
+                error: 'Invalid date range',
+                message: 'Start date must be before or equal to end date'
+            });
+        }
+        
+        const entries = await DiaryEntry.getEntriesByDateRange(startDate, endDate, req.deviceId);
         
         res.json({
             success: true,
             data: entries,
-            count: entries.length
+            count: entries.length,
+            range: { startDate, endDate }
         });
     } catch (error) {
-        console.error('Error fetching entries in range:', error);
+        console.error('Error fetching entries by range:', error);
         res.status(500).json({
             success: false,
-            error: 'Failed to fetch entries',
+            error: 'Failed to fetch entries by range',
             message: error.message
         });
     }
