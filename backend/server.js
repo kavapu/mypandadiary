@@ -54,7 +54,9 @@ app.get('/api/health', (req, res) => {
         success: true,
         message: 'Panda Diary API is running',
         timestamp: new Date().toISOString(),
-        version: '1.0.0'
+        version: '1.0.0',
+        mode: process.env.NODE_ENV || 'development',
+        database: process.env.NODE_ENV === 'development' ? 'available' : 'not available (LocalStorage only)'
     });
 });
 
@@ -64,6 +66,8 @@ app.get('/api', (req, res) => {
         name: 'Panda Diary API',
         version: '1.0.0',
         description: 'Backend API for Panda Diary web application',
+        mode: process.env.NODE_ENV || 'development',
+        database: process.env.NODE_ENV === 'development' ? 'available' : 'not available (LocalStorage only)',
         endpoints: {
             health: 'GET /api/health',
             entries: {
@@ -74,9 +78,10 @@ app.get('/api', (req, res) => {
                 upsert: 'PATCH /api/entries/:date',
                 delete: 'DELETE /api/entries/:date',
                 getRange: 'GET /api/entries/range/:startDate/:endDate'
-            }
+            },
         },
-        authentication: 'Device ID based (sent via X-Device-ID header)'
+        authentication: 'Device ID based (sent via X-Device-ID header)',
+        note: process.env.NODE_ENV === 'production' ? 'In production mode, database operations are disabled. The frontend will use LocalStorage for data persistence.' : 'Development mode with full database functionality.'
     });
 });
 
@@ -115,9 +120,13 @@ const startServer = async () => {
             console.log(`💚 Health check: http://localhost:${PORT}/api/health`);
         });
         
-        // Initialize database after server starts
-        await initDatabase();
-        console.log('✅ Database initialized successfully');
+        // Only initialize database in development mode
+        if (process.env.NODE_ENV === 'development') {
+            await initDatabase();
+            console.log('✅ Database initialized successfully');
+        } else {
+            console.log('🌐 Production mode: Database not available (using LocalStorage only)');
+        }
     } catch (error) {
         console.error('❌ Failed to start server:', error);
         process.exit(1);
