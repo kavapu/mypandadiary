@@ -2,15 +2,17 @@ services:
   - type: web
     name: panda-diary-app
     env: node
-    buildCommand: cd backend && npm install
-    startCommand: cd backend && npm start
+    buildCommand: npm install
+    startCommand: npm start
     envVars:
       - key: NODE_ENV
         value: production
       - key: PORT
         value: 10000
       - key: DB_PATH
-        value: ./database/panda_diary.db
+        value: ./panda_diary.db
+      - key: CORS_ORIGIN
+        value: https://panda-diary-app.onrender.com
       - key: JWT_SECRET
         value: 7b5752c62e9b820ff13bcc1459bd85a362abf512edd794e62544e0fba421f2849704130572448180587305d2e94ca9c7b60fa42115f6a816bc062ecae3cecb08
     healthCheckPath: /api/health
