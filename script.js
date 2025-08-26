@@ -6,17 +6,17 @@ let deviceId = localStorage.getItem('deviceId') || generateUUID();
 // API base URL
 const apiBaseUrl = window.location.origin + '/api';
 
-// Default music info
-const defaultMusic = {
-    title: "Song of the Day",
-    artist: "Your Music"
+// Default mood info
+const defaultMood = {
+    mood: "How are you feeling today?",
+    emoji: "😊"
 };
 
 // DOM Elements - will be initialized after DOM loads
-let songTitle, artist;
+let currentMood, moodEmoji, emojiGrid;
 
 // DOM Elements - will be initialized after DOM loads
-let liveTime, liveDate, dayOfWeek, diaryTextarea, saveBtn, prevDayBtn, nextDayBtn, currentDaySpan, historyBtn, pandaImage, externalMusicInput, saveExternalMusicBtn;
+let liveTime, liveDate, dayOfWeek, diaryTextarea, saveBtn, prevDayBtn, nextDayBtn, currentDaySpan, historyBtn, pandaImage;
 
 // API Functions
 const api = {
@@ -107,24 +107,23 @@ function initializeApp() {
     currentDaySpan = document.getElementById('currentDay');
     historyBtn = document.getElementById('historyBtn');
     pandaImage = document.querySelector('.panda-image');
-    externalMusicInput = document.getElementById('externalMusicInput');
-    saveExternalMusicBtn = document.getElementById('saveExternalMusic');
-    songTitle = document.getElementById('songTitle');
-    artist = document.getElementById('artist');
+    currentMood = document.getElementById('currentMood');
+    moodEmoji = document.getElementById('moodEmoji');
+    emojiGrid = document.getElementById('emojiGrid');
     
     // Debug logging for deployment
     console.log('DOM Elements initialized:', {
-        externalMusicInput: !!externalMusicInput,
-        saveExternalMusicBtn: !!saveExternalMusicBtn,
-        songTitle: !!songTitle,
-        artist: !!artist
+        currentMood: !!currentMood,
+        moodEmoji: !!moodEmoji,
+        emojiGrid: !!emojiGrid
     });
     
     setupLiveClock();
     setupDiary();
     setupOnlineStatus();
     updateCurrentDay();
-    updateExternalMusicDisplay();
+    setupMoodSelector();
+    updateMoodDisplay();
     
     // Show welcome message
     setTimeout(() => {
@@ -203,23 +202,23 @@ function setupDiary() {
     prevDayBtn.addEventListener('click', () => navigateDay(-1));
     nextDayBtn.addEventListener('click', () => navigateDay(1));
 
-    // External music input
-    console.log('Setting up external music event listeners...');
-    console.log('saveExternalMusicBtn:', saveExternalMusicBtn);
-    console.log('externalMusicInput:', externalMusicInput);
+    // Mood selector setup
+    console.log('Setting up mood selector...');
+    console.log('emojiGrid:', emojiGrid);
     
-    if (saveExternalMusicBtn && externalMusicInput) {
-        console.log('Adding event listeners for external music');
-        saveExternalMusicBtn.addEventListener('click', saveExternalMusic);
-        externalMusicInput.addEventListener('keypress', (e) => {
-            console.log('Keypress event:', e.key);
-            if (e.key === 'Enter') {
-                saveExternalMusic();
-            }
+    if (emojiGrid) {
+        console.log('Adding event listeners for mood selection');
+        const emojiButtons = emojiGrid.querySelectorAll('.emoji-btn');
+        emojiButtons.forEach(btn => {
+            btn.addEventListener('click', () => {
+                const mood = btn.dataset.mood;
+                const emoji = btn.dataset.emoji;
+                selectMood(mood, emoji);
+            });
         });
-        console.log('Event listeners added successfully');
+        console.log('Mood event listeners added successfully');
     } else {
-        console.error('Cannot add event listeners - elements not found');
+        console.error('Cannot add mood event listeners - emojiGrid not found');
     }
     
     // Auto-save on input (with better debouncing)
@@ -246,7 +245,7 @@ async function loadDiaryEntry() {
         
         if (entry && entry.data) {
             diaryTextarea.textContent = entry.data.content || '';
-            updateExternalMusicDisplay();
+            updateMoodDisplay();
         } else {
             // Load from localStorage as fallback
             const localContent = localStorage.getItem(`diary_${dateKey}`);
@@ -358,12 +357,20 @@ async function showHistory() {
             const entries = response.data || [];
             console.log('Entries found:', entries.length);
             
-            // Add external music data to API entries
-            const entriesWithMusic = entries.map(entry => {
-                const externalMusic = localStorage.getItem(`external_music_${entry.date}`);
-                return { ...entry, externalMusic };
+            // Add mood data to API entries
+            const entriesWithMood = entries.map(entry => {
+                const savedMood = localStorage.getItem(`mood_${entry.date}`);
+                let moodData = null;
+                if (savedMood) {
+                    try {
+                        moodData = JSON.parse(savedMood);
+                    } catch (error) {
+                        console.error('Error parsing mood data:', error);
+                    }
+                }
+                return { ...entry, moodData };
             });
-            displayHistoryModal(entriesWithMusic);
+            displayHistoryModal(entriesWithMood);
         } else {
             console.log('Offline - showing local entries');
             // Show local entries
@@ -386,8 +393,16 @@ function getLocalEntries() {
         if (key && key.startsWith('diary_')) {
             const date = key.replace('diary_', '');
             const content = localStorage.getItem(key);
-            const externalMusic = localStorage.getItem(`external_music_${date}`);
-            entries.push({ date, content, externalMusic });
+            const savedMood = localStorage.getItem(`mood_${date}`);
+            let moodData = null;
+            if (savedMood) {
+                try {
+                    moodData = JSON.parse(savedMood);
+                } catch (error) {
+                    console.error('Error parsing mood data:', error);
+                }
+            }
+            entries.push({ date, content, moodData });
         }
     }
     return entries.sort((a, b) => new Date(b.date) - new Date(a.date));
@@ -408,7 +423,7 @@ function displayHistoryModal(entries) {
                 entries.map(entry => `
                     <div class="history-entry">
                         <div class="history-entry-date">${formatDisplayDate(entry.date)}</div>
-                        ${entry.externalMusic ? `<div class="history-entry-music">🎵 ${entry.externalMusic}</div>` : ''}
+                        ${entry.moodData ? `<div class="history-entry-mood">${entry.moodData.emoji} ${entry.moodData.mood}</div>` : ''}
                         <div class="history-entry-content">${entry.content.substring(0, 100)}${entry.content.length > 100 ? '...' : ''}</div>
                     </div>
                 `).join('')}
@@ -467,51 +482,81 @@ function formatDisplayDate(dateString) {
     });
 }
 
-function saveExternalMusic() {
-    console.log('saveExternalMusic called');
-    console.log('externalMusicInput:', externalMusicInput);
-    console.log('externalMusicInput value:', externalMusicInput?.value);
+function selectMood(mood, emoji) {
+    console.log('selectMood called:', mood, emoji);
     
-    if (!externalMusicInput) {
-        console.error('External music input not found');
+    if (!currentMood || !moodEmoji) {
+        console.error('Mood display elements not found');
         return;
     }
     
-    const musicText = externalMusicInput.value.trim();
-    if (musicText) {
-        // Save to localStorage
-        const dateKey = formatDateKey(currentDate);
-        localStorage.setItem(`external_music_${dateKey}`, musicText);
-        
-        // Show success message
-        showNotification('🎵 External music saved!', 'success');
-        
-        // Clear input
-        externalMusicInput.value = '';
-        
-        // Update display
-        updateExternalMusicDisplay();
-    }
+    // Save to localStorage
+    const dateKey = formatDateKey(currentDate);
+    localStorage.setItem(`mood_${dateKey}`, JSON.stringify({ mood, emoji }));
+    
+    // Update display
+    currentMood.textContent = mood;
+    moodEmoji.textContent = emoji;
+    
+    // Update button states
+    const emojiButtons = emojiGrid.querySelectorAll('.emoji-btn');
+    emojiButtons.forEach(btn => {
+        btn.classList.remove('selected');
+        if (btn.dataset.mood === mood) {
+            btn.classList.add('selected');
+        }
+    });
+    
+    // Show success message
+    showNotification(`😊 Mood set to: ${mood}`, 'success');
 }
 
-function updateExternalMusicDisplay() {
-    if (!songTitle || !artist) {
-        console.error('Music display elements not found');
+function updateMoodDisplay() {
+    if (!currentMood || !moodEmoji) {
+        console.error('Mood display elements not found');
         return;
     }
     
     const dateKey = formatDateKey(currentDate);
-    const savedMusic = localStorage.getItem(`external_music_${dateKey}`);
+    const savedMood = localStorage.getItem(`mood_${dateKey}`);
     
-    if (savedMusic) {
-        // Show saved external music
-        songTitle.textContent = savedMusic;
-        artist.textContent = 'External Music';
+    if (savedMood) {
+        try {
+            const moodData = JSON.parse(savedMood);
+            currentMood.textContent = moodData.mood;
+            moodEmoji.textContent = moodData.emoji;
+            
+            // Update button states
+            const emojiButtons = emojiGrid.querySelectorAll('.emoji-btn');
+            emojiButtons.forEach(btn => {
+                btn.classList.remove('selected');
+                if (btn.dataset.mood === moodData.mood) {
+                    btn.classList.add('selected');
+                }
+            });
+        } catch (error) {
+            console.error('Error parsing saved mood:', error);
+            resetMoodDisplay();
+        }
     } else {
-        // Show default music info
-        songTitle.textContent = defaultMusic.title;
-        artist.textContent = defaultMusic.artist;
+        resetMoodDisplay();
     }
+}
+
+function resetMoodDisplay() {
+    currentMood.textContent = defaultMood.mood;
+    moodEmoji.textContent = defaultMood.emoji;
+    
+    // Remove selected state from all buttons
+    const emojiButtons = emojiGrid.querySelectorAll('.emoji-btn');
+    emojiButtons.forEach(btn => {
+        btn.classList.remove('selected');
+    });
+}
+
+function setupMoodSelector() {
+    // Initialize mood display
+    updateMoodDisplay();
 }
 
 // Utility Functions
@@ -565,6 +610,14 @@ function showNotification(message, type = 'info') {
 
 function formatDateKey(date) {
     return date.toISOString().split('T')[0];
+}
+
+function generateUUID() {
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+        const r = Math.random() * 16 | 0;
+        const v = c == 'x' ? r : (r & 0x3 | 0x8);
+        return v.toString(16);
+    });
 }
 
 // Panda interaction
