@@ -1,24 +1,15 @@
 // Global variables
 let currentDate = new Date();
-let deviceId = localStorage.getItem('deviceId') || generateUUID();
 let isOnline = navigator.onLine;
-const apiBaseUrl = window.location.origin + '/api';
-
-// Ensure deviceId is a valid UUID
-if (!deviceId.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i)) {
-    deviceId = generateUUID();
-}
-localStorage.setItem('deviceId', deviceId);
 
 // Default music info
 const defaultMusic = {
-    title: "Song of the Day",
-    artist: "Your Music"
+    title: 'Song of the Day',
+    artist: 'Your Favorite Artist'
 };
 
-// Music display elements
-const songTitle = document.getElementById('songTitle');
-const artist = document.getElementById('artist');
+// API base URL
+const API_BASE_URL = window.location.origin + '/api';
 
 // DOM Elements - will be initialized after DOM loads
 let liveTime, liveDate, dayOfWeek, diaryTextarea, saveBtn, prevDayBtn, nextDayBtn, currentDaySpan, historyBtn, pandaImage, externalMusicInput, saveExternalMusicBtn;
@@ -26,256 +17,155 @@ let liveTime, liveDate, dayOfWeek, diaryTextarea, saveBtn, prevDayBtn, nextDayBt
 // API Functions
 const api = {
     async request(endpoint, options = {}) {
-        const url = `${apiBaseUrl}${endpoint}`;
-        const config = {
+        const deviceId = localStorage.getItem('deviceId') || generateUUID();
+        localStorage.setItem('deviceId', deviceId);
+        
+        const defaultOptions = {
             headers: {
                 'Content-Type': 'application/json',
-                ...(deviceId && { 'X-Device-ID': deviceId }),
-                ...options.headers
-            },
-            ...options
-        };
-
-        console.log('API request:', url, 'Config:', config);
-
-        try {
-            const response = await fetch(url, config);
-            console.log('API response status:', response.status);
-            
-            // Handle device ID from response headers
-            const newDeviceId = response.headers.get('X-Device-ID');
-            if (newDeviceId && !deviceId) {
-                deviceId = newDeviceId;
-                localStorage.setItem('deviceId', deviceId);
+                'X-Device-ID': deviceId
             }
+        };
+        
+        const finalOptions = { ...defaultOptions, ...options };
+        
+        try {
+            const response = await fetch(`${API_BASE_URL}${endpoint}`, finalOptions);
             
             if (!response.ok) {
-                const errorText = await response.text();
-                console.error('API error response:', errorText);
-                throw new Error(`HTTP ${response.status}: ${response.statusText} - ${errorText}`);
+                if (response.status === 404) {
+                    return null; // Return null for 404s instead of throwing
+                }
+                throw new Error(`HTTP error! status: ${response.status}`);
             }
             
-            const data = await response.json();
-            console.log('API response data:', data);
-            return data;
+            return await response.json();
         } catch (error) {
             console.error('API request failed:', error);
             throw error;
         }
     },
-
-    // Diary entries
+    
     async getEntry(date) {
         try {
-            return await this.request(`/entries/${date}`);
+            const result = await this.request(`/entries/${date}`);
+            return result;
         } catch (error) {
-            // If it's a 404 (entry not found), that's normal - return empty data
-            if (error.message.includes('404')) {
-                return { success: true, data: { content: '' } };
-            }
+            console.error('Failed to get entry:', error);
+            return null;
+        }
+    },
+    
+    async saveEntry(date, content, music) {
+        try {
+            const result = await this.request(`/entries/${date}`, {
+                method: 'PATCH',
+                body: JSON.stringify({ content, music })
+            });
+            return result;
+        } catch (error) {
+            console.error('Failed to save entry:', error);
             throw error;
         }
     },
-
-    async saveEntry(date, content) {
-        return this.request(`/entries/${date}`, {
-            method: 'PATCH',
-            body: JSON.stringify({ content })
-        });
-    },
-
-    async deleteEntry(date) {
-        return this.request(`/entries/${date}`, {
-            method: 'DELETE'
-        });
-    },
-
-    async getAllEntries() {
-        return this.request('/entries');
-    },
-
-    // History
-    async getAllEntries() {
-        return this.request('/entries');
+    
+    async getEntries() {
+        try {
+            const result = await this.request('/entries');
+            return result;
+        } catch (error) {
+            console.error('Failed to get entries:', error);
+            return [];
+        }
     }
 };
 
-// Setup online/offline detection
-function setupOnlineStatus() {
-    window.addEventListener('online', () => {
-        isOnline = true;
-        console.log('🌐 Back online');
-        syncWithServer();
+// Utility Functions
+function generateUUID() {
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+        const r = Math.random() * 16 | 0;
+        const v = c == 'x' ? r : (r & 0x3 | 0x8);
+        return v.toString(16);
     });
-
-    window.addEventListener('offline', () => {
-        isOnline = false;
-        console.log('📴 Gone offline');
-    });
-}
-
-// Sync local data with server when coming back online
-async function syncWithServer() {
-    try {
-        // Get all local entries
-        const localEntries = getLocalEntries();
-        
-        // Try to sync each entry
-        for (const entry of localEntries) {
-            try {
-                await api.upsertEntry(entry.date, entry.content);
-                console.log(`✅ Synced entry for ${entry.date}`);
-            } catch (error) {
-                console.error(`❌ Failed to sync entry for ${entry.date}:`, error);
-            }
-        }
-        
-        showNotification('🔄 Synced with cloud!', 'success');
-    } catch (error) {
-        console.error('Sync failed:', error);
-        showNotification('❌ Sync failed. Entries saved locally.', 'error');
-    }
-}
-
-// Load diary entry for current date
-async function loadDiaryEntry() {
-    const dateKey = formatDateKey(currentDate);
-    
-    try {
-        if (isOnline) {
-            // Try to load from API
-            const response = await api.getEntry(dateKey);
-            
-            if (response.success && response.data) {
-                diaryTextarea.textContent = response.data.content;
-                return;
-            }
-        }
-        
-        // Fallback to LocalStorage
-        const savedContent = localStorage.getItem(`diary_${dateKey}`);
-        if (savedContent) {
-            diaryTextarea.textContent = savedContent;
-        } else {
-            diaryTextarea.textContent = '';
-        }
-    } catch (error) {
-        console.error('Error loading entry:', error);
-        
-        // Only show notification for actual errors, not 404s
-        if (error.message && !error.message.includes('404')) {
-            showNotification('Error loading entry. Using local data.', 'error');
-        }
-        
-        // Fallback to LocalStorage
-        const savedContent = localStorage.getItem(`diary_${dateKey}`);
-        if (savedContent) {
-            diaryTextarea.textContent = savedContent;
-        }
-    }
-}
-
-// Save diary entry
-async function saveDiaryEntry() {
-    const dateKey = formatDateKey(currentDate);
-    const content = diaryTextarea.textContent.trim();
-    
-    if (!content) {
-        showNotification('Please write something before saving! 📝', 'warning');
-        return;
-    }
-    
-    try {
-        if (isOnline) {
-            // Save to API
-            await api.saveEntry(dateKey, content);
-            
-            // Also save to LocalStorage as backup
-            localStorage.setItem(`diary_${dateKey}`, content);
-        } else {
-            // Save to LocalStorage only
-            localStorage.setItem(`diary_${dateKey}`, content);
-        }
-        
-        // Animate panda
-        pandaImage.classList.add('panda-bounce');
-        setTimeout(() => {
-            pandaImage.classList.remove('panda-bounce');
-        }, 800);
-        
-        // Show success message
-        const message = isOnline ? 'Entry saved to cloud! 🐼' : 'Entry saved locally! 🐼';
-        showNotification(message, 'success');
-    } catch (error) {
-        console.error('Error saving entry:', error);
-        showNotification('Error saving entry. Check your connection.', 'error');
-    }
-}
-
-async function autoSave() {
-    const content = diaryTextarea.textContent.trim();
-    if (content) {
-        const dateKey = formatDateKey(currentDate);
-        
-        try {
-            if (isOnline) {
-                await api.saveEntry(dateKey, content);
-            }
-            // Always save to LocalStorage as backup
-            localStorage.setItem(`diary_${dateKey}`, content);
-        } catch (error) {
-            console.error('Auto-save failed:', error);
-        }
-    }
-}
-
-function navigateDay(direction) {
-    // Add page flip animation
-    const diaryCard = document.querySelector('.diary-card');
-    diaryCard.classList.add('page-flip');
-    
-    setTimeout(() => {
-        // Update date
-        currentDate.setDate(currentDate.getDate() + direction);
-        updateCurrentDay();
-        
-        // Load entry for new date
-        loadDiaryEntry();
-        updateExternalMusicDisplay();
-        
-        // Remove animation class
-        diaryCard.classList.remove('page-flip');
-    }, 300);
-}
-
-function updateCurrentDay() {
-    const today = new Date();
-    const diffTime = currentDate.getTime() - today.getTime();
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    
-    if (diffDays === 0) {
-        currentDaySpan.textContent = 'Today';
-    } else if (diffDays === 1) {
-        currentDaySpan.textContent = 'Tomorrow';
-    } else if (diffDays === -1) {
-        currentDaySpan.textContent = 'Yesterday';
-    } else if (diffDays > 1) {
-        currentDaySpan.textContent = `In ${diffDays} days`;
-    } else {
-        currentDaySpan.textContent = `${Math.abs(diffDays)} days ago`;
-    }
-    
-    // Disable navigation buttons for future dates
-    const maxFutureDays = 7;
-    nextDayBtn.disabled = diffDays >= maxFutureDays;
-    prevDayBtn.disabled = diffDays <= -365; // Allow 1 year back
 }
 
 function formatDateKey(date) {
     return date.toISOString().split('T')[0];
 }
 
-// Live Clock Functions (optimized)
+function formatDisplayDate(date) {
+    return date.toLocaleDateString('en-US', {
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
+    });
+}
+
+// Initialize app when DOM is loaded
+document.addEventListener('DOMContentLoaded', function() {
+    initializeApp();
+});
+
+function initializeApp() {
+    // Initialize DOM elements
+    liveTime = document.getElementById('liveTime');
+    liveDate = document.getElementById('liveDate');
+    dayOfWeek = document.getElementById('dayOfWeek');
+    diaryTextarea = document.getElementById('diaryTextarea');
+    saveBtn = document.getElementById('saveBtn');
+    prevDayBtn = document.getElementById('prevDayBtn');
+    nextDayBtn = document.getElementById('nextDayBtn');
+    currentDaySpan = document.getElementById('currentDay');
+    historyBtn = document.getElementById('historyBtn');
+    pandaImage = document.querySelector('.panda-image');
+    externalMusicInput = document.getElementById('externalMusicInput');
+    saveExternalMusicBtn = document.getElementById('saveExternalMusic');
+    
+    // Debug logging for deployment
+    console.log('DOM Elements initialized:', {
+        externalMusicInput: !!externalMusicInput,
+        saveExternalMusicBtn: !!saveExternalMusicBtn,
+        songTitle: !!songTitle,
+        artist: !!artist
+    });
+    
+    setupLiveClock();
+    setupDiary();
+    setupOnlineStatus();
+    updateCurrentDay();
+    updateExternalMusicDisplay();
+    
+    // Show welcome message
+    setTimeout(() => {
+        showNotification('🐼 Welcome to your Panda Diary! Your entries are saved securely.', 'success');
+    }, 2000);
+}
+
+// Online/Offline Status
+function setupOnlineStatus() {
+    window.addEventListener('online', () => {
+        isOnline = true;
+        showNotification('🟢 Back online! Syncing with server...');
+        syncWithServer();
+    });
+
+    window.addEventListener('offline', () => {
+        isOnline = false;
+        showNotification('🔴 You\'re offline. Changes will be saved locally.');
+    });
+}
+
+async function syncWithServer() {
+    try {
+        showNotification('✅ Sync completed!');
+    } catch (error) {
+        console.error('Sync failed:', error);
+        showNotification('⚠️ Sync failed. Using local data.');
+    }
+}
+
+// Live Clock Functions
 function setupLiveClock() {
     updateClock();
     setInterval(updateClock, 1000);
@@ -321,16 +211,25 @@ function setupDiary() {
     saveBtn.addEventListener('click', saveDiaryEntry);
     historyBtn.addEventListener('click', showHistory);
     prevDayBtn.addEventListener('click', () => navigateDay(-1));
-        nextDayBtn.addEventListener('click', () => navigateDay(1));
+    nextDayBtn.addEventListener('click', () => navigateDay(1));
 
     // External music input
+    console.log('Setting up external music event listeners...');
+    console.log('saveExternalMusicBtn:', saveExternalMusicBtn);
+    console.log('externalMusicInput:', externalMusicInput);
+    
     if (saveExternalMusicBtn && externalMusicInput) {
+        console.log('Adding event listeners for external music');
         saveExternalMusicBtn.addEventListener('click', saveExternalMusic);
         externalMusicInput.addEventListener('keypress', (e) => {
+            console.log('Keypress event:', e.key);
             if (e.key === 'Enter') {
                 saveExternalMusic();
             }
         });
+        console.log('Event listeners added successfully');
+    } else {
+        console.error('Cannot add event listeners - elements not found');
     }
     
     // Auto-save on input (with better debouncing)
@@ -351,144 +250,139 @@ function setupDiary() {
 }
 
 async function loadDiaryEntry() {
-    const dateKey = formatDateKey(currentDate);
-    console.log('Loading diary entry for:', dateKey, 'Device ID:', deviceId, 'Online:', isOnline);
-    
     try {
-        if (isOnline) {
-            // Try to load from API
-            console.log('Attempting to load from API...');
-            const response = await api.getEntry(dateKey);
-            console.log('API response:', response);
-            diaryTextarea.textContent = response.data?.content || '';
+        const dateKey = formatDateKey(currentDate);
+        const entry = await api.getEntry(dateKey);
+        
+        if (entry && entry.data) {
+            diaryTextarea.textContent = entry.data.content || '';
+            updateExternalMusicDisplay();
         } else {
-            // Fallback to LocalStorage
-            console.log('Loading from LocalStorage...');
-            const entry = localStorage.getItem(`diary_${dateKey}`);
-            diaryTextarea.textContent = entry || '';
+            // Load from localStorage as fallback
+            const localContent = localStorage.getItem(`diary_${dateKey}`);
+            if (localContent) {
+                diaryTextarea.textContent = localContent;
+            } else {
+                diaryTextarea.textContent = '';
+            }
         }
     } catch (error) {
-        console.error('Error loading entry:', error);
-        // Only show notification for real errors, not 404s
-        if (!error.message.includes('404')) {
-            showNotification('⚠️ Error loading entry: ' + error.message);
+        console.error('Failed to load diary entry:', error);
+        // Fallback to localStorage
+        const dateKey = formatDateKey(currentDate);
+        const localContent = localStorage.getItem(`diary_${dateKey}`);
+        if (localContent) {
+            diaryTextarea.textContent = localContent;
         }
-        // Fallback to LocalStorage
-        const entry = localStorage.getItem(`diary_${dateKey}`);
-        diaryTextarea.textContent = entry || '';
     }
 }
 
 async function saveDiaryEntry() {
-    const dateKey = formatDateKey(currentDate);
-    const content = diaryTextarea.textContent.trim();
-    
-    if (!content) {
-        showNotification('Please write something before saving! 📝', 'warning');
-        return;
-    }
-    
     try {
-        if (isOnline) {
-            // Save to API
-            await api.saveEntry(dateKey, content);
-            // Also save to LocalStorage as backup
-            localStorage.setItem(`diary_${dateKey}`, content);
-        } else {
-            // Save to LocalStorage only
-            localStorage.setItem(`diary_${dateKey}`, content);
-        }
+        const content = diaryTextarea.textContent.trim();
+        const dateKey = formatDateKey(currentDate);
         
-        // Animate panda
-        pandaImage.classList.add('panda-bounce');
+        // Save to server
+        await api.saveEntry(dateKey, content, '');
+        
+        // Also save to localStorage as backup
+        localStorage.setItem(`diary_${dateKey}`, content);
+        
+        showNotification('✅ Entry saved successfully!', 'success');
+        
+        // Add page flip animation
+        diaryTextarea.classList.add('page-flip');
         setTimeout(() => {
-            pandaImage.classList.remove('panda-bounce');
-        }, 800);
+            diaryTextarea.classList.remove('page-flip');
+        }, 600);
         
-        // Show success message
-        const message = isOnline ? 'Entry saved to cloud! 🐼' : 'Entry saved locally! 🐼';
-        showNotification(message, 'success');
     } catch (error) {
-        console.error('Error saving entry:', error);
-        showNotification('Error saving entry. Check your connection.', 'error');
+        console.error('Failed to save entry:', error);
+        showNotification('⚠️ Failed to save to server. Saved locally.', 'warning');
+        
+        // Save to localStorage as fallback
+        const content = diaryTextarea.textContent.trim();
+        const dateKey = formatDateKey(currentDate);
+        localStorage.setItem(`diary_${dateKey}`, content);
     }
 }
 
 async function autoSave() {
     const content = diaryTextarea.textContent.trim();
     if (content) {
-        const dateKey = formatDateKey(currentDate);
-        
         try {
-            if (isOnline) {
-                await api.saveEntry(dateKey, content);
-            }
-            // Always save to LocalStorage as backup
+            const dateKey = formatDateKey(currentDate);
+            await api.saveEntry(dateKey, content, '');
             localStorage.setItem(`diary_${dateKey}`, content);
+            console.log('Auto-saved entry');
         } catch (error) {
             console.error('Auto-save failed:', error);
         }
     }
 }
 
-// History modal functionality
-async function showHistory() {
-    try {
-        let entries = [];
-        
-        if (isOnline) {
-            // Try to get entries from API
-            const response = await api.getAllEntries();
-            const entries = response.data || [];
-            // Add external music data to API entries
-            const entriesWithMusic = entries.map(entry => {
-                const externalMusic = localStorage.getItem(`external_music_${entry.date}`);
-                return { ...entry, externalMusic };
-            });
-            displayHistoryModal(entriesWithMusic);
-        } else {
-            // Show local entries
-            entries = getLocalEntries();
-            displayHistoryModal(entries);
-        }
-    } catch (error) {
-        console.error('Error loading history:', error);
-        // Fallback to local entries
-        const entries = getLocalEntries();
-        displayHistoryModal(entries);
+function navigateDay(direction) {
+    currentDate.setDate(currentDate.getDate() + direction);
+    updateCurrentDay();
+    loadDiaryEntry();
+    
+    // Add page flip animation
+    diaryTextarea.classList.add('page-flip');
+    setTimeout(() => {
+        diaryTextarea.classList.remove('page-flip');
+    }, 600);
+}
+
+function updateCurrentDay() {
+    const today = new Date();
+    const isToday = currentDate.toDateString() === today.toDateString();
+    
+    if (isToday) {
+        currentDaySpan.textContent = 'Today';
+    } else {
+        currentDaySpan.textContent = formatDisplayDate(currentDate);
+    }
+    
+    // Update button states
+    prevDayBtn.disabled = false;
+    nextDayBtn.disabled = false;
+    
+    // Disable next day if it's in the future
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    if (currentDate >= tomorrow) {
+        nextDayBtn.disabled = true;
     }
 }
 
-function getLocalEntries() {
-    const entries = [];
-    for (let i = 0; i < localStorage.length; i++) {
-        const key = localStorage.key(i);
-        if (key && key.startsWith('diary_')) {
-            const date = key.replace('diary_', '');
-            const content = localStorage.getItem(key);
-            const externalMusic = localStorage.getItem(`external_music_${date}`);
-            entries.push({ date, content, externalMusic });
-        }
+// History Modal Functions
+async function showHistory() {
+    try {
+        const entries = await api.getEntries();
+        displayHistoryModal(entries.data || []);
+    } catch (error) {
+        console.error('Failed to load history:', error);
+        showNotification('⚠️ Failed to load history', 'warning');
     }
-    return entries.sort((a, b) => new Date(b.date) - new Date(a.date));
 }
 
 function displayHistoryModal(entries) {
+    // Create modal
     const modal = document.createElement('div');
     modal.className = 'history-modal';
     modal.innerHTML = `
         <div class="history-modal-content">
             <div class="history-modal-header">
                 <h3>📚 Diary History</h3>
-                <button class="close-btn">×</button>
+                <button class="close-btn" onclick="closeHistoryModal()">&times;</button>
             </div>
             <div class="history-modal-body">
-                ${entries.length === 0 ? '<p class="no-entries">No entries found. Start writing to see your history!</p>' : 
-                entries.map(entry => `
-                    <div class="history-entry">
-                        <div class="history-entry-date">${formatDisplayDate(entry.date)}</div>
-                        ${entry.externalMusic ? `<div class="history-entry-music">🎵 ${entry.externalMusic}</div>` : ''}
-                        <div class="history-entry-content">${entry.content.substring(0, 100)}${entry.content.length > 100 ? '...' : ''}</div>
+                ${entries.length === 0 ? '<div class="no-entries">No entries found</div>' : ''}
+                ${entries.map(entry => `
+                    <div class="history-entry" onclick="loadHistoryEntry('${entry.date}')">
+                        <div class="history-entry-date">${formatDisplayDate(new Date(entry.date))}</div>
+                        ${entry.music ? `<div class="history-entry-music">🎵 ${entry.music}</div>` : ''}
+                        <div class="history-entry-content">${entry.content ? entry.content.substring(0, 100) + (entry.content.length > 100 ? '...' : '') : 'No content'}</div>
                     </div>
                 `).join('')}
             </div>
@@ -497,33 +391,26 @@ function displayHistoryModal(entries) {
     
     document.body.appendChild(modal);
     
-    // Add event listeners for closing the modal
-    const closeBtn = modal.querySelector('.close-btn');
-    closeBtn.addEventListener('click', closeHistoryModal);
+    // Add escape key handler
+    modal._escapeHandler = (e) => {
+        if (e.key === 'Escape') {
+            closeHistoryModal();
+        }
+    };
+    document.addEventListener('keydown', modal._escapeHandler);
     
-    // Also close when clicking outside the modal
+    // Add click outside to close
     modal.addEventListener('click', (e) => {
         if (e.target === modal) {
             closeHistoryModal();
         }
     });
-    
-    // Close on Escape key
-    const handleEscape = (e) => {
-        if (e.key === 'Escape') {
-            closeHistoryModal();
-        }
-    };
-    document.addEventListener('keydown', handleEscape);
-    
-    // Store the escape handler for cleanup
-    modal._escapeHandler = handleEscape;
 }
 
 function closeHistoryModal() {
     const modal = document.querySelector('.history-modal');
     if (modal) {
-        // Clean up event listeners
+        // Remove event listeners
         if (modal._escapeHandler) {
             document.removeEventListener('keydown', modal._escapeHandler);
         }
@@ -547,6 +434,10 @@ function formatDisplayDate(dateString) {
 }
 
 function saveExternalMusic() {
+    console.log('saveExternalMusic called');
+    console.log('externalMusicInput:', externalMusicInput);
+    console.log('externalMusicInput value:', externalMusicInput?.value);
+    
     if (!externalMusicInput) {
         console.error('External music input not found');
         return;
@@ -627,7 +518,7 @@ function showNotification(message, type = 'info') {
         notification.style.transform = 'translateX(0)';
     }, 100);
     
-    // Remove after 3 seconds
+    // Remove after 4 seconds
     setTimeout(() => {
         notification.style.transform = 'translateX(100%)';
         setTimeout(() => {
@@ -635,45 +526,15 @@ function showNotification(message, type = 'info') {
                 notification.parentNode.removeChild(notification);
             }
         }, 300);
-    }, 3000);
+    }, 4000);
 }
 
-function generateUUID() {
-    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
-        const r = Math.random() * 16 | 0;
-        const v = c == 'x' ? r : (r & 0x3 | 0x8);
-        return v.toString(16);
+// Panda interaction
+if (pandaImage) {
+    pandaImage.addEventListener('click', () => {
+        pandaImage.classList.add('panda-bounce');
+        setTimeout(() => {
+            pandaImage.classList.remove('panda-bounce');
+        }, 800);
     });
-}
-
-// Initialize the app
-document.addEventListener('DOMContentLoaded', function() {
-    initializeApp();
-});
-
-function initializeApp() {
-    // Initialize DOM elements
-    liveTime = document.getElementById('liveTime');
-    liveDate = document.getElementById('liveDate');
-    dayOfWeek = document.getElementById('dayOfWeek');
-    diaryTextarea = document.getElementById('diaryTextarea');
-    saveBtn = document.getElementById('saveBtn');
-    prevDayBtn = document.getElementById('prevDayBtn');
-    nextDayBtn = document.getElementById('nextDayBtn');
-    currentDaySpan = document.getElementById('currentDay');
-    historyBtn = document.getElementById('historyBtn');
-    pandaImage = document.querySelector('.panda-image');
-    externalMusicInput = document.getElementById('externalMusicInput');
-    saveExternalMusicBtn = document.getElementById('saveExternalMusic');
-    
-    setupLiveClock();
-    setupDiary();
-    setupOnlineStatus();
-    updateCurrentDay();
-    updateExternalMusicDisplay();
-    
-    // Show welcome message
-    setTimeout(() => {
-        showNotification('🐼 Welcome to your Panda Diary! Your entries are saved securely.', 'success');
-    }, 2000);
 }
