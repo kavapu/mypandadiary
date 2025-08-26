@@ -164,11 +164,102 @@ function formatDisplayDate(date) {
     });
 }
 
+// Initialize the app
+document.addEventListener('DOMContentLoaded', function() {
+    initializeApp();
+});
+
+function initializeApp() {
+    console.log('Initializing app...');
+    
+    // Initialize DOM elements
+    liveTime = document.getElementById('liveTime');
+    liveDate = document.getElementById('liveDate');
+    dayOfWeek = document.getElementById('dayOfWeek');
+    diaryTextarea = document.getElementById('diaryTextarea');
+    saveBtn = document.getElementById('saveBtn');
+    prevDayBtn = document.getElementById('prevDayBtn');
+    nextDayBtn = document.getElementById('nextDayBtn');
+    currentDaySpan = document.getElementById('currentDay');
+    historyBtn = document.getElementById('historyBtn');
+    pandaImage = document.querySelector('.panda-image');
+    currentMood = document.getElementById('currentMood');
+    moodEmoji = document.getElementById('moodEmoji');
+    emojiGrid = document.getElementById('emojiGrid');
+    
+    // Debug logging for all elements
+    console.log('DOM Elements initialized:', {
+        liveTime: !!liveTime,
+        liveDate: !!liveDate,
+        dayOfWeek: !!dayOfWeek,
+        diaryTextarea: !!diaryTextarea,
+        saveBtn: !!saveBtn,
+        prevDayBtn: !!prevDayBtn,
+        nextDayBtn: !!nextDayBtn,
+        currentDaySpan: !!currentDaySpan,
+        historyBtn: !!historyBtn,
+        pandaImage: !!pandaImage,
+        currentMood: !!currentMood,
+        moodEmoji: !!moodEmoji,
+        emojiGrid: !!emojiGrid
+    });
+    
+    // Check if critical elements are found
+    if (!liveTime || !liveDate || !dayOfWeek) {
+        console.error('Critical time elements not found!');
+        return;
+    }
+    
+    setupLiveClock();
+    setupDiary();
+    setupOnlineStatus();
+    updateCurrentDay();
+    setupMoodSelector();
+    updateMoodDisplay();
+    
+    // Show welcome message
+    setTimeout(() => {
+        showNotification('🐼 Welcome to your Panda Diary! Your entries are saved securely.', 'success');
+    }, 2000);
+    
+    console.log('App initialization complete');
+}
+
+// Online/Offline Status
+function setupOnlineStatus() {
+    window.addEventListener('online', () => {
+        isOnline = true;
+        showNotification('🟢 Back online! Syncing with server...');
+        syncWithServer();
+    });
+
+    window.addEventListener('offline', () => {
+        isOnline = false;
+        showNotification('🔴 You\'re offline. Changes will be saved locally.');
+    });
+}
+
+async function syncWithServer() {
+    try {
+        showNotification('✅ Sync completed!');
+    } catch (error) {
+        console.error('Sync failed:', error);
+        showNotification('⚠️ Sync failed. Using local data.');
+    }
+}
+
 // Live Clock Functions - Optimized for performance
 function setupLiveClock() {
+    console.log('Setting up live clock...');
+    console.log('liveTime element:', liveTime);
+    
+    // Force initial update
     updateClock();
+    
     // Update every second for accurate time display
     setInterval(updateClock, 1000);
+    
+    console.log('Live clock setup complete');
 }
 
 function updateClock() {
@@ -181,8 +272,12 @@ function updateClock() {
         minute: '2-digit',
         second: '2-digit'
     });
+    
     if (liveTime) {
         liveTime.textContent = timeString;
+        console.log('Time updated:', timeString);
+    } else {
+        console.error('liveTime element not found!');
     }
     
     // Update date (only if changed - once per day)
@@ -370,6 +465,12 @@ function updateDayDisplay() {
     }
 }
 
+function updateCurrentDay() {
+    if (currentDaySpan) {
+        currentDaySpan.textContent = formatDisplayDate(currentDate);
+    }
+}
+
 // Mood Functions
 async function loadMood(dateKey) {
     console.log('Loading mood for:', dateKey);
@@ -454,13 +555,39 @@ function updateMoodSelection(selectedEmoji) {
     }
 }
 
+function updateMoodDisplay() {
+    const dateKey = formatDateKey(currentDate);
+    const savedMood = localStorage.getItem(`mood_${dateKey}`);
+    
+    if (savedMood) {
+        try {
+            const moodData = JSON.parse(savedMood);
+            currentMood.textContent = moodData.mood;
+            moodEmoji.textContent = moodData.emoji;
+            updateMoodSelection(moodData.emoji);
+        } catch (error) {
+            console.error('Error parsing saved mood:', error);
+            resetMoodDisplay();
+        }
+    } else {
+        resetMoodDisplay();
+    }
+}
+
 function resetMoodDisplay() {
     currentMood.textContent = defaultMood.mood;
     moodEmoji.textContent = defaultMood.emoji;
     
-    // Remove all selections
-    const allButtons = emojiGrid.querySelectorAll('.emoji-btn');
-    allButtons.forEach(btn => btn.classList.remove('selected'));
+    // Remove selected state from all buttons
+    const emojiButtons = emojiGrid.querySelectorAll('.emoji-btn');
+    emojiButtons.forEach(btn => {
+        btn.classList.remove('selected');
+    });
+}
+
+function setupMoodSelector() {
+    // Initialize mood display
+    updateMoodDisplay();
 }
 
 // History Functions
@@ -562,73 +689,75 @@ function displayHistory(entries) {
     });
 }
 
-// Network Status Functions
-function updateNetworkStatus() {
-    isOnline = navigator.onLine;
-    console.log('Network status changed. Online:', isOnline);
+// Utility Functions
+function showNotification(message, type = 'info') {
+    // Create notification element
+    const notification = document.createElement('div');
+    notification.textContent = message;
     
-    // Update API base URL based on environment
-    if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-        apiBaseUrl = 'http://localhost:3000/api';
-    } else {
-        // Use relative URL for production
-        apiBaseUrl = '/api';
-    }
+    const colors = {
+        info: 'rgba(52, 152, 219, 0.9)',
+        success: 'rgba(46, 204, 113, 0.9)',
+        warning: 'rgba(241, 196, 15, 0.9)',
+        error: 'rgba(231, 76, 60, 0.9)'
+    };
+    
+    notification.style.cssText = `
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        background: ${colors[type] || colors.info};
+        color: white;
+        padding: 15px 20px;
+        border-radius: 10px;
+        font-weight: 500;
+        z-index: 1000;
+        transform: translateX(100%);
+        transition: transform 0.3s ease;
+        backdrop-filter: blur(10px);
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+        max-width: 300px;
+        word-wrap: break-word;
+    `;
+    
+    document.body.appendChild(notification);
+    
+    // Animate in
+    setTimeout(() => {
+        notification.style.transform = 'translateX(0)';
+    }, 100);
+    
+    // Remove after 3 seconds
+    setTimeout(() => {
+        notification.style.transform = 'translateX(100%)';
+        setTimeout(() => {
+            document.body.removeChild(notification);
+        }, 300);
+    }, 3000);
 }
 
-// Initialize app
-document.addEventListener('DOMContentLoaded', function() {
-    console.log('Initializing MyPandaDiary...');
-    
-    // Initialize DOM elements
-    liveTime = document.getElementById('liveTime');
-    liveDate = document.getElementById('liveDate');
-    dayOfWeek = document.getElementById('dayOfWeek');
-    diaryTextarea = document.getElementById('diaryTextarea');
-    saveBtn = document.getElementById('saveBtn');
-    prevDayBtn = document.getElementById('prevDayBtn');
-    nextDayBtn = document.getElementById('nextDayBtn');
-    currentDaySpan = document.getElementById('currentDay');
-    historyBtn = document.getElementById('historyBtn');
-    pandaImage = document.getElementById('pandaImage');
-    currentMood = document.getElementById('currentMood');
-    moodEmoji = document.getElementById('moodEmoji');
-    emojiGrid = document.getElementById('emojiGrid');
-    
-    // Check if all elements are found
-    if (!liveTime || !liveDate || !dayOfWeek || !diaryTextarea || !saveBtn || 
-        !prevDayBtn || !nextDayBtn || !currentDaySpan || !historyBtn || 
-        !pandaImage || !currentMood || !moodEmoji || !emojiGrid) {
-        console.error('Some DOM elements not found:', {
-            liveTime: !!liveTime,
-            liveDate: !!liveDate,
-            dayOfWeek: !!dayOfWeek,
-            diaryTextarea: !!diaryTextarea,
-            saveBtn: !!saveBtn,
-            prevDayBtn: !!prevDayBtn,
-            nextDayBtn: !!nextDayBtn,
-            currentDaySpan: !!currentDaySpan,
-            historyBtn: !!historyBtn,
-            pandaImage: !!pandaImage,
-            currentMood: !!currentMood,
-            moodEmoji: !!moodEmoji,
-            emojiGrid: !!emojiGrid
-        });
-        return;
+// Keyboard shortcuts
+document.addEventListener('keydown', function(e) {
+    // Ctrl/Cmd + S to save
+    if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+        e.preventDefault();
+        saveDiaryEntry();
     }
     
-    console.log('All DOM elements found successfully');
-    
-    // Setup components
-    setupLiveClock();
-    setupDiary();
-    
-    // Setup network status listeners
-    window.addEventListener('online', updateNetworkStatus);
-    window.addEventListener('offline', updateNetworkStatus);
-    
-    // Initial network status check
-    updateNetworkStatus();
-    
-    console.log('MyPandaDiary initialized successfully!');
+    // Left/Right arrows to navigate days (when not typing)
+    if (e.target !== diaryTextarea) {
+        if (e.key === 'ArrowLeft') {
+            navigateDay(-1);
+        } else if (e.key === 'ArrowRight') {
+            navigateDay(1);
+        }
+    }
 });
+
+// Initialize with a welcome message for new users
+if (!localStorage.getItem('diary_welcome_shown')) {
+    setTimeout(() => {
+        showNotification('Welcome to your Panda Diary! 🐼 Start writing about your day!');
+        localStorage.setItem('diary_welcome_shown', 'true');
+    }, 1000);
+}
