@@ -8,12 +8,15 @@ if (!fs.existsSync(dbDir)) {
     fs.mkdirSync(dbDir, { recursive: true });
 }
 
+// Get database path from environment variable or use default
+const dbPath = process.env.DB_PATH || './panda_diary.db';
+
 // Create database connection
-const db = new sqlite3.Database('./panda_diary.db', (err) => {
+const db = new sqlite3.Database(dbPath, (err) => {
     if (err) {
         console.error('Error opening database:', err.message);
     } else {
-        console.log('Connected to SQLite database.');
+        console.log('Connected to SQLite database at:', dbPath);
     }
 });
 
@@ -61,6 +64,8 @@ const createTables = () => {
             )
         `;
 
+
+
         db.serialize(() => {
             db.run(createEntriesTable, (err) => {
                 if (err) {
@@ -89,6 +94,8 @@ const createTables = () => {
                 }
             });
 
+
+
             // Create indexes for better performance
             db.run('CREATE INDEX IF NOT EXISTS idx_entries_date ON diary_entries(date)', (err) => {
                 if (err) {
@@ -106,7 +113,18 @@ const createTables = () => {
                 }
             });
 
-            resolve();
+            db.run('CREATE INDEX IF NOT EXISTS idx_entries_date_device ON diary_entries(date, device_id)', (err) => {
+                if (err) {
+                    console.error('Error creating date_device index:', err.message);
+                } else {
+                    console.log('Date_device index created successfully.');
+                }
+            });
+
+            // Resolve after all operations complete
+            setTimeout(() => {
+                resolve();
+            }, 100);
         });
     });
 };
@@ -115,17 +133,14 @@ const createTables = () => {
 const initDatabase = async () => {
     try {
         await createTables();
-        console.log('Database initialization completed successfully!');
-        // Don't close the connection - keep it open for the server
+        console.log('✅ Database initialization completed successfully');
     } catch (error) {
-        console.error('Database initialization failed:', error);
-        process.exit(1);
+        console.error('❌ Database initialization failed:', error);
+        throw error;
     }
 };
 
-// Run initialization if this file is executed directly
-if (require.main === module) {
-    initDatabase();
-}
-
-module.exports = { initDatabase, db };
+module.exports = {
+    initDatabase,
+    db
+};
