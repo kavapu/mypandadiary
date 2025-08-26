@@ -155,7 +155,7 @@ body::before {
 .mood-card {
     display: flex;
     flex-direction: column;
-    flex: 0.6; /* Take up remaining space */
+    flex: 0.7; /* Take up more space to balance with smaller time card */
 }
 
 .mood-info {
@@ -189,6 +189,7 @@ body::before {
     grid-template-columns: repeat(5, 1fr);
     gap: 8px;
     max-width: 100%;
+    /* Perfect for 2 rows of 5 emojis each */
 }
 
 .emoji-btn {
@@ -228,7 +229,7 @@ body::before {
     display: flex;
     flex-direction: column;
     justify-content: center;
-    flex: 0.4; /* Make time card smaller */
+    flex: 0.3; /* Make time card even smaller for better balance */
 }
 
 .time-display-large {
@@ -654,7 +655,7 @@ body::before {
     }
     
     .emoji-grid {
-        grid-template-columns: repeat(4, 1fr);
+        grid-template-columns: repeat(5, 1fr);
         gap: 6px;
     }
     
@@ -811,7 +812,7 @@ body::before {
     }
     
     .emoji-grid {
-        grid-template-columns: repeat(3, 1fr);
+        grid-template-columns: repeat(5, 1fr);
         gap: 4px;
     }
     
