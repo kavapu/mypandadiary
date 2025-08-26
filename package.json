@@ -1,0 +1,21 @@
+{
+  "name": "mypandadiary",
+  "version": "1.0.0",
+  "description": "A beautiful, minimalist diary web application with a music player and live clock. Built with vanilla HTML, CSS, and JavaScript featuring glassmorphism design and smooth animations.",
+  "main": "backend/server.js",
+  "scripts": {
+    "start": "cd backend && npm install && npm start",
+    "dev": "cd backend && npm run dev",
+    "init-db": "cd backend && npm run init-db",
+    "frontend": "python3 -m http.server 8000",
+    "backend": "cd backend && npm start",
+    "install-backend": "cd backend && npm install",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": ["diary", "web-app", "music-player", "glassmorphism", "vanilla-js"],
+  "author": "Panda Diary Team",
+  "license": "MIT",
+  "engines": {
+    "node": ">=14.0.0"
+  }
+}
