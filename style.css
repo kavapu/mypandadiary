@@ -46,7 +46,7 @@ body::before {
     .nav-btn:hover:not(:disabled),
     .history-btn:hover,
     .save-btn:hover,
-    .external-music-btn:hover {
+    .emoji-btn:hover {
         transform: scale(1.05) translateZ(0);
     }
     
@@ -149,84 +149,75 @@ body::before {
     font-size: 1.3rem;
 }
 
-/* Music Player Styles */
-.music-card {
+/* Mood Styles */
+.mood-card {
     display: flex;
     flex-direction: column;
-    justify-content: center;
 }
 
-.music-info {
+.mood-info {
     text-align: center;
     margin-bottom: 20px;
 }
 
-.song-title {
-    font-size: 1.2rem;
+.current-mood {
+    font-size: 1.1rem;
     font-weight: 500;
     color: #2c3e50;
-    margin-bottom: 8px;
+    margin-bottom: 10px;
 }
 
-.artist {
-    font-size: 0.9rem;
-    color: #7f8c8d;
-    font-weight: 300;
-}
-
-.external-music {
-    display: flex;
-    gap: 10px;
-    margin-top: 15px;
-    align-items: center;
-}
-
-.external-music-input {
-    flex: 1;
-    background: rgba(255, 255, 255, 0.2);
-    border: 1px solid rgba(255, 255, 255, 0.3);
-    border-radius: 10px;
-    padding: 10px 15px;
-    font-size: 0.9rem;
-    color: #2c3e50;
-    outline: none;
+.mood-emoji {
+    font-size: 2.5rem;
+    margin-bottom: 15px;
     transition: all 0.3s ease;
 }
 
-.external-music-input:focus {
-    background: rgba(255, 255, 255, 0.3);
-    border-color: rgba(52, 152, 219, 0.5);
-    box-shadow: 0 0 15px rgba(52, 152, 219, 0.2);
+.mood-emoji:hover {
+    transform: scale(1.1);
 }
 
-.external-music-input::placeholder {
-    color: #95a5a6;
-    font-style: italic;
+.mood-selector {
+    margin-top: 15px;
 }
 
-.external-music-btn {
+.emoji-grid {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 8px;
+    max-width: 100%;
+}
+
+.emoji-btn {
     background: rgba(255, 255, 255, 0.15);
     backdrop-filter: blur(10px);
     border: 1px solid rgba(255, 255, 255, 0.2);
-    border-radius: 10px;
-    padding: 8px 10px;
-    font-size: 0.8rem;
+    border-radius: 12px;
+    padding: 12px 8px;
+    font-size: 1.2rem;
     cursor: pointer;
     transition: all 0.3s ease;
     color: #2c3e50;
-    min-width: 32px;
-    height: 32px;
+    min-width: 40px;
+    height: 40px;
     display: flex;
     align-items: center;
     justify-content: center;
     box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
 }
 
-.external-music-btn:hover {
+.emoji-btn:hover {
     background: rgba(255, 255, 255, 0.25);
     border-color: rgba(255, 255, 255, 0.4);
-    transform: scale(1.05);
+    transform: scale(1.1);
     box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15);
+}
+
+.emoji-btn.selected {
+    background: rgba(52, 152, 219, 0.3);
+    border-color: rgba(52, 152, 219, 0.6);
+    transform: scale(1.05);
+    box-shadow: 0 6px 20px rgba(52, 152, 219, 0.3);
 }
 
 /* Time Card Styles */
@@ -382,8 +373,6 @@ body::before {
     align-items: center;
 }
 
-
-
 .history-btn {
     background: rgba(255, 255, 255, 0.15);
     backdrop-filter: blur(10px);
@@ -472,6 +461,218 @@ body::before {
     75% { transform: scale(1.15) rotate(-3deg); }
 }
 
+/* History Modal */
+.history-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(10px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+.history-modal-content {
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(20px);
+    border-radius: 20px;
+    padding: 2rem;
+    max-width: 800px;
+    width: 90%;
+    max-height: 80vh;
+    overflow-y: auto;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    animation: slideUp 0.3s ease;
+}
+
+@keyframes slideUp {
+    from { transform: translateY(50px); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+}
+
+.history-modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 2rem;
+    padding-bottom: 1rem;
+    border-bottom: 2px solid rgba(52, 152, 219, 0.2);
+}
+
+.history-modal-header h3 {
+    margin: 0;
+    color: #2c3e50;
+    font-size: 1.8rem;
+}
+
+.close-btn {
+    background: none;
+    border: none;
+    font-size: 2rem;
+    color: #7f8c8d;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+}
+
+.close-btn:hover {
+    background: rgba(231, 76, 60, 0.1);
+    color: #e74c3c;
+    transform: scale(1.1);
+}
+
+.history-modal-body {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+}
+
+.no-entries {
+    text-align: center;
+    color: #7f8c8d;
+    font-style: italic;
+    font-size: 1.1rem;
+    padding: 2rem;
+}
+
+.history-entry {
+    background: rgba(255, 255, 255, 0.7);
+    border: 1px solid rgba(52, 152, 219, 0.2);
+    border-radius: 15px;
+    padding: 1.5rem;
+    transition: all 0.3s ease;
+    cursor: pointer;
+}
+
+.history-entry:hover {
+    background: rgba(255, 255, 255, 0.8);
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+}
+
+.history-entry-date {
+    font-weight: 600;
+    color: #2c3e50;
+    margin-bottom: 8px;
+    font-size: 0.9rem;
+}
+
+.history-entry-mood {
+    font-weight: 500;
+    color: #e74c3c;
+    margin-bottom: 6px;
+    font-size: 0.85rem;
+    font-style: italic;
+}
+
+.history-entry-content {
+    color: #34495e;
+    line-height: 1.5;
+    font-family: 'Indie Flower', 'Gochi Hand', cursive;
+    font-size: 1rem;
+}
+
+.no-entries {
+    text-align: center;
+    color: #95a5a6;
+    font-style: italic;
+    padding: 40px 20px;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+@keyframes slideIn {
+    from { 
+        opacity: 0;
+        transform: translateY(-50px) scale(0.9);
+    }
+    to { 
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+/* Responsive modal */
+@media (max-width: 768px) {
+    .history-modal-content {
+        width: 95%;
+        max-height: 85vh;
+    }
+    
+    .history-modal-header {
+        padding: 15px 20px;
+    }
+    
+    .history-modal-header h3 {
+        font-size: 1.1rem;
+    }
+    
+    .history-modal-body {
+        padding: 15px 20px;
+        max-height: 70vh;
+    }
+    
+    .history-entry {
+        padding: 12px;
+        margin-bottom: 12px;
+    }
+    
+    .history-entry-date {
+        font-size: 0.8rem;
+    }
+    
+    .history-entry-content {
+        font-size: 0.9rem;
+    }
+    
+    .history-entry-mood {
+        font-size: 0.8rem;
+    }
+    
+    .emoji-grid {
+        grid-template-columns: repeat(4, 1fr);
+        gap: 6px;
+    }
+    
+    .emoji-btn {
+        padding: 10px 6px;
+        font-size: 1rem;
+        min-width: 35px;
+        height: 35px;
+    }
+}
+
+/* Reduced motion for accessibility */
+@media (prefers-reduced-motion: reduce) {
+    * {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
+    
+    body::before {
+        animation: none;
+    }
+}
+
 /* Responsive Design */
 @media (max-width: 1200px) {
     .container {
@@ -488,7 +689,7 @@ body::before {
         flex-direction: row;
     }
     
-    .music-card, .time-card {
+    .mood-card, .time-card {
         flex: 1;
     }
 }
@@ -568,8 +769,20 @@ body::before {
         font-size: 0.9rem;
     }
     
-    .history-entry-music {
+    .history-entry-mood {
         font-size: 0.8rem;
+    }
+    
+    .emoji-grid {
+        grid-template-columns: repeat(4, 1fr);
+        gap: 6px;
+    }
+    
+    .emoji-btn {
+        padding: 10px 6px;
+        font-size: 1rem;
+        min-width: 35px;
+        height: 35px;
     }
 }
 
@@ -592,23 +805,22 @@ body::before {
         font-size: 0.9rem;
     }
     
-    .external-music {
-        flex-direction: column;
-        gap: 8px;
+    .emoji-grid {
+        grid-template-columns: repeat(3, 1fr);
+        gap: 4px;
     }
     
-    .external-music-input {
-        font-size: 0.8rem;
-    }
-    
-    .external-music-btn {
-        align-self: center;
+    .emoji-btn {
+        padding: 8px 4px;
+        font-size: 0.9rem;
+        min-width: 30px;
+        height: 30px;
     }
 }
 
 /* Touch-friendly improvements */
 @media (hover: none) and (pointer: coarse) {
-    .nav-btn, .history-btn, .save-btn, .external-music-btn {
+    .nav-btn, .history-btn, .save-btn, .emoji-btn {
         min-height: 44px;
         min-width: 44px;
     }
