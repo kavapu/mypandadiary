@@ -92,26 +92,45 @@ app.use((err, req, res, next) => {
     });
 });
 
-// Start server function
-async function startServer() {
+// 404 handler
+app.use((req, res) => {
+    res.status(404).json({
+        success: false,
+        error: 'Not found',
+        message: 'The requested resource was not found'
+    });
+});
+
+// Initialize database and start server
+const startServer = async () => {
     try {
-        // Initialize database (works on Render)
+        // Initialize database first (works on Render)
         await initDb.initDatabase();
         console.log('✅ Database initialized successfully');
         
-        // Start the server
+        // Start server after database is ready
         app.listen(PORT, () => {
-            console.log(`🚀 Panda Diary server running on port ${PORT}`);
-            console.log(`📱 Frontend available at: http://localhost:${PORT}`);
-            console.log(`🔧 API available at: http://localhost:${PORT}/api`);
-            console.log(`💾 Database: SQLite (persistent on Render)`);
-            console.log(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`);
+            console.log(`🚀 Panda Diary API server running on port ${PORT}`);
+            console.log(`📖 Frontend available at: http://localhost:${PORT}`);
+            console.log(`🔗 API documentation: http://localhost:${PORT}/api`);
+            console.log(`💚 Health check: http://localhost:${PORT}/api/health`);
         });
     } catch (error) {
         console.error('❌ Failed to start server:', error);
         process.exit(1);
     }
-}
+};
+
+// Handle graceful shutdown
+process.on('SIGINT', () => {
+    console.log('\n🛑 Shutting down server gracefully...');
+    process.exit(0);
+});
+
+process.on('SIGTERM', () => {
+    console.log('\n🛑 Shutting down server gracefully...');
+    process.exit(0);
+});
 
 // Start the server
 startServer();
