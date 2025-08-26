@@ -1,8 +1,8 @@
 const sqlite3 = require('sqlite3').verbose();
 const path = require('path');
 
-// Database connection
-const dbPath = path.join(__dirname, 'panda_diary.db');
+// Get database path from environment variable or use default
+const dbPath = process.env.DB_PATH || path.join(__dirname, 'panda_diary.db');
 const db = new sqlite3.Database(dbPath, (err) => {
     if (err) {
         console.error('Error opening database:', err.message);
