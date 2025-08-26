@@ -153,6 +153,7 @@ body::before {
 .mood-card {
     display: flex;
     flex-direction: column;
+    flex: 0.6; /* Take up remaining space */
 }
 
 .mood-info {
@@ -225,6 +226,7 @@ body::before {
     display: flex;
     flex-direction: column;
     justify-content: center;
+    flex: 0.4; /* Make time card smaller */
 }
 
 .time-display-large {
@@ -232,21 +234,21 @@ body::before {
 }
 
 .current-time {
-    font-size: 2.8rem;
+    font-size: 2.2rem; /* Smaller font size */
     font-weight: 600;
     color: #2c3e50;
-    margin-bottom: 10px;
+    margin-bottom: 8px; /* Reduced margin */
     font-family: 'Poppins', sans-serif;
 }
 
 .current-date {
-    font-size: 1.3rem;
+    font-size: 1.1rem; /* Smaller font size */
     color: #34495e;
-    margin-bottom: 5px;
+    margin-bottom: 4px; /* Reduced margin */
 }
 
 .day-of-week {
-    font-size: 1.1rem;
+    font-size: 0.9rem; /* Smaller font size */
     color: #7f8c8d;
     font-weight: 300;
 }
@@ -702,93 +704,83 @@ body::before {
     
     .left-column {
         flex-direction: column;
-        gap: 10px;
+    }
+    
+    /* Reset flex values for mobile to stack properly */
+    .time-card, .mood-card {
+        flex: 1;
+        min-width: auto;
     }
     
     .card {
         padding: 20px;
     }
     
+    .card h3 {
+        font-size: 1.1rem;
+        margin-bottom: 15px;
+    }
+    
     .current-time {
-        font-size: 2.2rem;
+        font-size: 2rem;
     }
     
     .current-date {
-        font-size: 1.1rem;
+        font-size: 0.9rem;
+    }
+    
+    .mood-info .current-mood {
+        font-size: 1rem;
+    }
+    
+    .mood-info .mood-emoji {
+        font-size: 2rem;
     }
     
     .diary-navigation {
         gap: 10px;
+        margin-bottom: 15px;
     }
     
     .nav-btn {
-        width: 40px;
-        height: 40px;
-        font-size: 1rem;
+        width: 35px;
+        height: 35px;
+        font-size: 0.9rem;
     }
     
     .current-day {
         font-size: 1rem;
-        min-width: 100px;
+        min-width: 80px;
     }
     
     .diary-textarea {
-        min-height: 250px;
         font-size: 1rem;
         padding: 15px;
+        min-height: 300px;
     }
     
     .diary-footer {
         flex-direction: column;
-        gap: 10px;
+        gap: 15px;
+        align-items: stretch;
     }
     
-    .history-btn, .save-btn {
-        padding: 10px 20px;
-        font-size: 0.9rem;
-    }
-    
-    .history-modal-content {
-        padding: 1.5rem;
-        width: 95%;
-    }
-    
-    .history-modal-header h3 {
-        font-size: 1.5rem;
-    }
-    
-    .history-entry {
-        padding: 1rem;
-    }
-    
-    .history-entry-date {
+    .save-btn {
+        width: 100%;
+        padding: 12px;
         font-size: 1rem;
     }
     
-    .history-entry-content {
-        font-size: 0.9rem;
-    }
-    
-    .history-entry-mood {
-        font-size: 0.8rem;
-    }
-    
-    .emoji-grid {
-        grid-template-columns: repeat(4, 1fr);
-        gap: 6px;
-    }
-    
-    .emoji-btn {
-        padding: 10px 6px;
-        font-size: 1rem;
-        min-width: 35px;
-        height: 35px;
+    .panda-image {
+        width: 50px;
+        height: 50px;
     }
 }
 
 @media (max-width: 480px) {
     .container {
-        padding: 5px;
+        padding: 8px;
+        gap: 8px;
     }
     
     .card {
@@ -796,8 +788,17 @@ body::before {
         border-radius: 15px;
     }
     
+    .card h3 {
+        font-size: 1rem;
+        margin-bottom: 12px;
+    }
+    
     .current-time {
         font-size: 1.8rem;
+    }
+    
+    .current-date {
+        font-size: 0.8rem;
     }
     
     .diary-textarea {
