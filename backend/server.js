@@ -3,7 +3,7 @@ const cors = require('cors');
 const helmet = require('helmet');
 const morgan = require('morgan');
 const path = require('path');
-require('dotenv').config({ path: './config.env' });
+// Environment variables are loaded automatically by Render
 
 // Import routes
 const entriesRoutes = require('./routes/entries');
@@ -81,7 +81,7 @@ app.get('/api', (req, res) => {
             },
         },
         authentication: 'Device ID based (sent via X-Device-ID header)',
-        note: 'Full database functionality with SQLite. Deployed on Railway for persistent storage.'
+        note: 'Full database functionality with SQLite. Deployed on Render for persistent storage.'
     });
 });
 
@@ -120,7 +120,7 @@ const startServer = async () => {
             console.log(`💚 Health check: http://localhost:${PORT}/api/health`);
         });
         
-        // Initialize database (works on Railway)
+        // Initialize database (works on Render)
         await initDatabase();
         console.log('✅ Database initialized successfully');
     } catch (error) {
