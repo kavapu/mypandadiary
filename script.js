@@ -167,21 +167,21 @@ function formatDisplayDate(date) {
 // Live Clock Functions - Optimized for performance
 function setupLiveClock() {
     updateClock();
-    // Update every 30 seconds instead of every second for better performance
-    setInterval(updateClock, 30000);
+    // Update every second for accurate time display
+    setInterval(updateClock, 1000);
 }
 
 function updateClock() {
     const now = new Date();
     
-    // Update time (only if changed)
+    // Update time (every second for accurate display)
     const timeString = now.toLocaleTimeString('en-US', {
         hour12: false,
         hour: '2-digit',
         minute: '2-digit',
         second: '2-digit'
     });
-    if (liveTime && liveTime.textContent !== timeString) {
+    if (liveTime) {
         liveTime.textContent = timeString;
     }
     
