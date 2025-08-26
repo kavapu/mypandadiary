@@ -275,49 +275,53 @@ function formatDateKey(date) {
     return date.toISOString().split('T')[0];
 }
 
-// Live clock functionality
+// Live Clock Functions (optimized)
 function setupLiveClock() {
-    function updateClock() {
-        const now = new Date();
-        
-        // Update time
-        const timeString = now.toLocaleTimeString('en-US', {
-            hour12: false,
-            hour: '2-digit',
-            minute: '2-digit',
-            second: '2-digit'
-        });
-        liveTime.textContent = timeString;
-        
-        // Update date
-        const dateString = now.toLocaleDateString('en-US', {
-            weekday: 'long',
-            year: 'numeric',
-            month: 'long',
-            day: 'numeric'
-        });
-        liveDate.textContent = dateString;
-        
-        // Update day of week
-        const dayString = now.toLocaleDateString('en-US', { weekday: 'long' });
-        dayOfWeek.textContent = dayString;
-    }
-    
-    // Update immediately and then every second
     updateClock();
     setInterval(updateClock, 1000);
 }
 
-// Diary setup
+function updateClock() {
+    const now = new Date();
+    
+    // Update time (only if changed)
+    const timeString = now.toLocaleTimeString('en-US', {
+        hour12: false,
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit'
+    });
+    if (liveTime.textContent !== timeString) {
+        liveTime.textContent = timeString;
+    }
+    
+    // Update date (only if changed - once per day)
+    const dateString = now.toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
+    });
+    if (liveDate.textContent !== dateString) {
+        liveDate.textContent = dateString;
+    }
+    
+    // Update day of week (only if changed)
+    const dayString = now.toLocaleDateString('en-US', { weekday: 'long' });
+    if (dayOfWeek.textContent !== dayString) {
+        dayOfWeek.textContent = dayString;
+    }
+}
+
+// Diary Functions
 function setupDiary() {
-    // Load initial entry
+    // Load today's entry
     loadDiaryEntry();
     
     // Event listeners
     saveBtn.addEventListener('click', saveDiaryEntry);
     historyBtn.addEventListener('click', showHistory);
     prevDayBtn.addEventListener('click', () => navigateDay(-1));
-    nextDayBtn.addEventListener('click', () => navigateDay(1));
+        nextDayBtn.addEventListener('click', () => navigateDay(1));
 
     // External music input
     if (saveExternalMusicBtn && externalMusicInput) {
@@ -329,12 +333,102 @@ function setupDiary() {
         });
     }
     
-    // Auto-save on input (with debounce)
-    let autoSaveTimeout;
+    // Auto-save on input (with better debouncing)
+    let saveTimeout;
+    let lastContent = '';
     diaryTextarea.addEventListener('input', () => {
-        clearTimeout(autoSaveTimeout);
-        autoSaveTimeout = setTimeout(autoSave, 2000);
+        const currentContent = diaryTextarea.textContent.trim();
+        
+        // Only auto-save if content actually changed
+        if (currentContent !== lastContent) {
+            clearTimeout(saveTimeout);
+            saveTimeout = setTimeout(() => {
+                autoSave();
+                lastContent = currentContent;
+            }, 3000); // Increased from 2s to 3s
+        }
     });
+}
+
+async function loadDiaryEntry() {
+    const dateKey = formatDateKey(currentDate);
+    console.log('Loading diary entry for:', dateKey, 'Device ID:', deviceId, 'Online:', isOnline);
+    
+    try {
+        if (isOnline) {
+            // Try to load from API
+            console.log('Attempting to load from API...');
+            const response = await api.getEntry(dateKey);
+            console.log('API response:', response);
+            diaryTextarea.textContent = response.data?.content || '';
+        } else {
+            // Fallback to LocalStorage
+            console.log('Loading from LocalStorage...');
+            const entry = localStorage.getItem(`diary_${dateKey}`);
+            diaryTextarea.textContent = entry || '';
+        }
+    } catch (error) {
+        console.error('Error loading entry:', error);
+        // Only show notification for real errors, not 404s
+        if (!error.message.includes('404')) {
+            showNotification('⚠️ Error loading entry: ' + error.message);
+        }
+        // Fallback to LocalStorage
+        const entry = localStorage.getItem(`diary_${dateKey}`);
+        diaryTextarea.textContent = entry || '';
+    }
+}
+
+async function saveDiaryEntry() {
+    const dateKey = formatDateKey(currentDate);
+    const content = diaryTextarea.textContent.trim();
+    
+    if (!content) {
+        showNotification('Please write something before saving! 📝', 'warning');
+        return;
+    }
+    
+    try {
+        if (isOnline) {
+            // Save to API
+            await api.saveEntry(dateKey, content);
+            // Also save to LocalStorage as backup
+            localStorage.setItem(`diary_${dateKey}`, content);
+        } else {
+            // Save to LocalStorage only
+            localStorage.setItem(`diary_${dateKey}`, content);
+        }
+        
+        // Animate panda
+        pandaImage.classList.add('panda-bounce');
+        setTimeout(() => {
+            pandaImage.classList.remove('panda-bounce');
+        }, 800);
+        
+        // Show success message
+        const message = isOnline ? 'Entry saved to cloud! 🐼' : 'Entry saved locally! 🐼';
+        showNotification(message, 'success');
+    } catch (error) {
+        console.error('Error saving entry:', error);
+        showNotification('Error saving entry. Check your connection.', 'error');
+    }
+}
+
+async function autoSave() {
+    const content = diaryTextarea.textContent.trim();
+    if (content) {
+        const dateKey = formatDateKey(currentDate);
+        
+        try {
+            if (isOnline) {
+                await api.saveEntry(dateKey, content);
+            }
+            // Always save to LocalStorage as backup
+            localStorage.setItem(`diary_${dateKey}`, content);
+        } catch (error) {
+            console.error('Auto-save failed:', error);
+        }
+    }
 }
 
 // History modal functionality
