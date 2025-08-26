@@ -56,7 +56,7 @@ app.get('/api/health', (req, res) => {
         timestamp: new Date().toISOString(),
         version: '1.0.0',
         mode: process.env.NODE_ENV || 'development',
-        database: process.env.NODE_ENV === 'development' ? 'available' : 'not available (LocalStorage only)'
+        database: 'available (SQLite)'
     });
 });
 
@@ -67,7 +67,7 @@ app.get('/api', (req, res) => {
         version: '1.0.0',
         description: 'Backend API for Panda Diary web application',
         mode: process.env.NODE_ENV || 'development',
-        database: process.env.NODE_ENV === 'development' ? 'available' : 'not available (LocalStorage only)',
+        database: 'available (SQLite)',
         endpoints: {
             health: 'GET /api/health',
             entries: {
@@ -81,7 +81,7 @@ app.get('/api', (req, res) => {
             },
         },
         authentication: 'Device ID based (sent via X-Device-ID header)',
-        note: process.env.NODE_ENV === 'production' ? 'In production mode, database operations are disabled. The frontend will use LocalStorage for data persistence.' : 'Development mode with full database functionality.'
+        note: 'Full database functionality with SQLite. Deployed on Railway for persistent storage.'
     });
 });
 
@@ -120,13 +120,9 @@ const startServer = async () => {
             console.log(`💚 Health check: http://localhost:${PORT}/api/health`);
         });
         
-        // Only initialize database in development mode
-        if (process.env.NODE_ENV === 'development') {
-            await initDatabase();
-            console.log('✅ Database initialized successfully');
-        } else {
-            console.log('🌐 Production mode: Database not available (using LocalStorage only)');
-        }
+        // Initialize database (works on Railway)
+        await initDatabase();
+        console.log('✅ Database initialized successfully');
     } catch (error) {
         console.error('❌ Failed to start server:', error);
         process.exit(1);
